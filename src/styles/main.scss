@@ -1,0 +1,169 @@
+// ==================== 主题颜色变量 ====================
+// 主色调
+$primary-color: #73b9ff;
+$primary-start: #2e85ff;
+$primary-end: #569dff;
+
+// 渐变色组合
+$gradient-primary: linear-gradient(135deg, $primary-start 0%, $primary-end 100%);
+$gradient-pink: linear-gradient(135deg, #f9c4ff 0%, #ff9aa7 100%);
+$gradient-blue: linear-gradient(135deg, #a0d3ff 0%, #98faff 100%);
+$gradient-green: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+$gradient-yellow: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+$gradient-purple: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
+$gradient-light: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+$gradient-rose: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+
+// 文本颜色
+$text-primary: #303133;
+$text-regular: #606266;
+$text-secondary: #909399;
+$text-placeholder: #c0c4cc;
+
+// 背景颜色
+$bg-color: #f5f7fa;
+$bg-white: #ffffff;
+$bg-hover: #f0f4ff;
+
+// 边框颜色
+$border-color: #ebeef5;
+$border-light: #f1f1f1;
+
+// 功能颜色
+$success-color: #67c23a;
+$warning-color: #e6a23c;
+$danger-color: #f56c6c;
+$info-color: #909399;
+
+// 项目难度颜色映射
+$difficulty-beginner: $gradient-green;
+$difficulty-intermediate: $gradient-blue;
+$difficulty-advanced: $gradient-pink;
+
+// ==================== 全局样式 ====================
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+    'Noto Color Emoji';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: $text-primary;
+  background-color: $bg-color;
+}
+
+// 导出变量供其他组件使用
+:export {
+  primaryColor: $primary-color;
+  primaryStart: $primary-start;
+  primaryEnd: $primary-end;
+  gradientPrimary: $gradient-primary;
+  gradientPink: $gradient-pink;
+  gradientBlue: $gradient-blue;
+  gradientGreen: $gradient-green;
+  gradientYellow: $gradient-yellow;
+  gradientPurple: $gradient-purple;
+  gradientLight: $gradient-light;
+  gradientRose: $gradient-rose;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+}
+
+// 滚动条样式
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: $border-light;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: $text-placeholder;
+  border-radius: 4px;
+
+  &:hover {
+    background: $text-secondary;
+  }
+}
+
+// Element Plus 样式覆盖
+.el-card {
+  border-radius: 12px;
+}
+
+.el-button {
+  border-radius: 6px;
+}
+
+.el-input__wrapper {
+  border-radius: 6px;
+}
+
+.el-select .el-input__wrapper {
+  border-radius: 6px;
+}
+
+// 全局间距优化：按钮 / 标签 / 输入左右留白
+// 按钮：提升左右内边距（区分不同尺寸与类型）
+//
+
+:deep(.el-button:not(.is-text):not(.is-link)) {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+:deep(.el-button--small:not(.is-text):not(.is-link)) {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+:deep(.el-button--large:not(.is-text):not(.is-link)) {
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+// 标签：提升左右内边距
+:deep(.el-tag) {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+// 输入框与选择器：提升左右内边距
+:deep(.el-input__wrapper) {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+:deep(.el-select .el-input__wrapper) {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+// 动画
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
