@@ -48,17 +48,24 @@
     </el-card>
 
     <!-- 课程推荐 -->
-    <el-card class="recommendations-card" shadow="never" v-if="recommendedCourses.length > 0">
+    <el-card class="recommendations-card" shadow="never">
       <template #header>
         <div class="card-header">
           <span>
             <el-icon><Star /></el-icon>
             为您推荐
           </span>
-          <el-button type="text" size="small" @click="refreshRecommendations">刷新推荐</el-button>
+          <el-button type="text" size="small" @click="refreshRecommendations" :loading="recommendationsLoading">
+            刷新推荐
+          </el-button>
         </div>
       </template>
-      <div class="recommendations-list">
+      
+      <div v-if="recommendationsLoading" class="recommendations-loading">
+        <el-skeleton :rows="3" animated />
+      </div>
+      
+      <div v-else-if="recommendedCourses.length > 0" class="recommendations-list">
         <el-card
           v-for="course in recommendedCourses"
           :key="course.id"
@@ -79,6 +86,8 @@
           </div>
         </el-card>
       </div>
+      
+      <el-empty v-else description="暂无推荐课程" :image-size="120" />
     </el-card>
 
     <!-- 已选课程提示 -->
@@ -101,7 +110,12 @@
           >
             {{ course.name }}
           </el-tag>
-          <el-button type="primary" size="small" @click="handleConfirmSelection">
+          <el-button 
+            type="primary" 
+            size="small" 
+            @click="handleConfirmSelection"
+            :loading="confirmSelectionLoading"
+          >
             确认选课
           </el-button>
         </div>
@@ -109,7 +123,10 @@
     </el-alert>
 
     <!-- 课程列表 -->
-    <div class="courses-grid">
+    <div v-if="coursesLoading" class="courses-loading">
+      <el-skeleton :rows="6" animated />
+    </div>
+    <div v-else class="courses-grid">
       <el-card
         v-for="course in filteredCourses"
         :key="course.id"
@@ -186,13 +203,20 @@
 
           <div class="course-footer">
             <el-button
-              v-if="!course.isSelected"
+              v-if="!course.isSelected && !course.alreadySelected"
               type="primary"
               :disabled="course.enrolled >= course.capacity"
               @click="handleSelectCourse(course)"
             >
               <el-icon><Plus /></el-icon>
               {{ course.enrolled >= course.capacity ? '已满员' : '选择课程' }}
+            </el-button>
+            <el-button
+              v-else-if="course.alreadySelected"
+              disabled
+            >
+              <el-icon><Check /></el-icon>
+              已选修
             </el-button>
             <el-button
               v-else
@@ -338,7 +362,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Search,
@@ -350,9 +374,11 @@ import {
   Calendar,
   Clock,
   Collection,
-  Star
+  Star,
+  Check
 } from '@element-plus/icons-vue'
 import { themeColors, courseCardColors } from '@/styles/variables.js'
+import { courseApi } from '@/api'
 
 const filterForm = ref({
   category: '',
@@ -368,6 +394,8 @@ const detailDialogVisible = ref(false)
 const selectedCourseDetail = ref(null)
 const detailTab = ref('info')
 const recommendedCourses = ref([])
+const confirmSelectionLoading = ref(false)
+const recommendationsLoading = ref(false)
 
 // 随机背景图片数组（使用 Picsum Photos 随机图片服务）
 const backgroundImages = [
@@ -389,166 +417,76 @@ const assignRandomBackground = (course, index) => {
   }
 }
 
-const allCourses = ref([
-  {
-    id: 1,
-    name: 'Vue.js前端开发',
-    description: '深入学习Vue.js框架，掌握现代前端开发技术，包括组件化开发、状态管理、路由等核心概念。',
-    enterprise: '李氏企业',
-    semester: '2024春季',
-    credits: 1,
-    duration: 16,
-    category: '前端开发',
-    enrolled: 45,
-    capacity: 60,
-    rating: 4.8,
-    color: courseCardColors[0],
-    isSelected: false,
-    backgroundImage: backgroundImages[0],
-    syllabus: [
-      {
-        title: 'Vue.js基础',
-        content: ['Vue.js简介与安装', '模板语法', '响应式数据', '计算属性与监听器']
-      },
-      {
-        title: '组件开发',
-        content: ['组件注册', 'Props与Events', '插槽使用', '动态组件']
-      },
-      {
-        title: '状态管理',
-        content: ['Vuex基础', '状态设计', '异步操作', '模块化管理']
+const allCourses = ref([])
+const coursesLoading = ref(false)
+
+// 获取课程列表
+const loadCourses = async () => {
+  coursesLoading.value = true
+  try {
+    console.log('📚 获取课程列表...')
+    const response = await courseApi.getCourses({
+      page: 1,
+      limit: 100 // 获取更多课程
+    })
+    console.log('📝 课程列表响应:', response)
+    
+    // 处理不同的响应格式
+    let courses = []
+    if (response && response.data) {
+      // 如果响应有data字段
+      if (Array.isArray(response.data)) {
+        courses = response.data
+      } else if (response.data.list && Array.isArray(response.data.list)) {
+        courses = response.data.list
       }
-    ],
-    reviews: [
-      {
-        id: 1,
-        name: '学生A',
-        rating: 5,
-        date: '2024-01-10',
-        content: '氏企业讲解很详细，课程内容实用，收获很大！'
-      },
-      {
-        id: 2,
-        name: '学生B',
-        rating: 4,
-        date: '2024-01-08',
-        content: '课程设计不错，但作业有点难度，需要多花时间。'
-      }
-    ]
-  },
-  {
-    id: 2,
-    name: 'React高级开发',
-    description: '学习React的高级特性，包括Hooks、Context、性能优化等，构建大型单页应用。',
-    enterprise: '王氏企业',
-    semester: '2024春季',
-    credits: 1,
-    duration: 16,
-    category: '前端开发',
-    enrolled: 38,
-    capacity: 50,
-    rating: 4.7,
-    color: courseCardColors[1],
-    isSelected: false,
-    backgroundImage: backgroundImages[1]
-  },
-  {
-    id: 3,
-    name: 'Python数据分析',
-    description: '使用Python进行数据分析，学习pandas、numpy、matplotlib等数据分析库的使用。',
-    enterprise: '张氏企业',
-    semester: '2024春季',
-    credits: 1,
-    duration: 16,
-    category: '数据科学',
-    enrolled: 52,
-    capacity: 60,
-    rating: 4.9,
-    color: courseCardColors[2],
-    isSelected: false,
-    backgroundImage: backgroundImages[2]
-  },
-  {
-    id: 4,
-    name: 'Java后端开发',
-    description: '学习Java企业级开发，包括Spring Boot、MyBatis等框架，掌握RESTful API设计。',
-    enterprise: '刘氏企业',
-    semester: '2024春季',
-    credits: 1,
-    duration: 16,
-    category: '后端开发',
-    enrolled: 60,
-    capacity: 60,
-    rating: 4.6,
-    color: courseCardColors[3],
-    isSelected: false,
-    backgroundImage: backgroundImages[3]
-  },
-  {
-    id: 5,
-    name: '数据结构与算法',
-    description: '系统学习数据结构和算法，提高编程能力和问题解决能力，为技术面试做准备。',
-    enterprise: '陈氏企业',
-    semester: '2024春季',
-    credits: 1,
-    duration: 16,
-    category: '算法基础',
-    enrolled: 48,
-    capacity: 55,
-    rating: 4.8,
-    color: courseCardColors[4],
-    isSelected: false,
-    backgroundImage: backgroundImages[4]
-  },
-  {
-    id: 6,
-    name: '微服务架构设计',
-    description: '学习微服务架构设计模式，包括服务拆分、服务治理、分布式事务等核心概念。',
-    enterprise: '赵氏企业',
-    semester: '2024春季',
-    credits: 1,
-    duration: 16,
-    category: '系统架构',
-    enrolled: 35,
-    capacity: 50,
-    rating: 4.7,
-    color: courseCardColors[5],
-    isSelected: false,
-    backgroundImage: backgroundImages[5]
-  },
-  {
-    id: 7,
-    name: 'Node.js全栈开发',
-    description: '使用Node.js进行全栈开发，学习Express、MongoDB等技术，构建完整的Web应用。',
-    enterprise: '孙氏企业',
-    semester: '2024春季',
-    credits: 1,
-    duration: 16,
-    category: '后端开发',
-    enrolled: 42,
-    capacity: 55,
-    rating: 4.6,
-    color: courseCardColors[6],
-    isSelected: false,
-    backgroundImage: backgroundImages[6]
-  },
-  {
-    id: 8,
-    name: '机器学习基础',
-    description: '入门机器学习，学习常用算法和模型，使用Python进行实际项目开发。',
-    enterprise: '周氏企业',
-    semester: '2024春季',
-    credits: 1,
-    duration: 16,
-    category: '数据科学',
-    enrolled: 40,
-    capacity: 50,
-    rating: 4.9,
-    color: courseCardColors[7],
-    isSelected: false,
-    backgroundImage: backgroundImages[7]
+    } else if (Array.isArray(response)) {
+      // 直接是数组
+      courses = response
+    } else if (response && response.code && Array.isArray(response.list)) {
+      // 标准格式
+      courses = response.list
+    }
+    
+    // 为课程添加必要字段并分配背景图片
+    if (courses.length > 0) {
+      allCourses.value = courses.map((course, index) => {
+        // 确保必要字段存在
+        return {
+          id: course.id || index + 1,
+          name: course.name || '未知课程',
+          description: course.description || '暂无课程描述',
+          enterprise: course.enterprise || '未知企业',
+          semester: course.semester || '2024春季',
+          credits: course.credits || 1,
+          duration: course.duration || 16,
+          category: course.category || '其他',
+          enrolled: course.enrolled || 0,
+          capacity: course.capacity || 50,
+          rating: course.rating || 4.5,
+          isSelected: false,
+          alreadySelected: course.alreadySelected || false,
+          backgroundImage: backgroundImages[index % backgroundImages.length],
+          color: courseCardColors[index % courseCardColors.length],
+          syllabus: course.syllabus || generateDefaultSyllabus(course.name),
+          reviews: course.reviews || [],
+          recommendReason: course.recommendReason,
+          ...course // 保留其他字段
+        }
+      })
+      console.log('✅ 课程列表加载成功，数量:', allCourses.value.length)
+    } else {
+      console.log('⚠️ 课程列表为空')
+      allCourses.value = []
+    }
+    
+  } catch (error) {
+    console.error('❌ 获取课程列表失败:', error)
+    allCourses.value = []
+  } finally {
+    coursesLoading.value = false
   }
-])
+}
 
 const filteredCourses = computed(() => {
   let result = allCourses.value
@@ -593,13 +531,29 @@ const handleReset = () => {
 }
 
 const handleSelectCourse = (course) => {
+  // 检查是否已选择
   if (selectedCourses.value.find(c => c.id === course.id)) {
     ElMessage.warning('该课程已选择')
     return
   }
 
+  // 检查是否已满员
+  if (course.enrolled >= course.capacity) {
+    ElMessage.error('该课程已满员，无法选择')
+    return
+  }
+
+  // 检查是否已选修（在实际场景中，应该检查用户是否已经选过这门课）
+  if (course.alreadySelected) {
+    ElMessage.warning('您已经选修过这门课程')
+    return
+  }
+
+  // 更新状态
   course.isSelected = true
   selectedCourses.value.push(course)
+  
+  console.log('📚 选择课程:', course.name, 'ID:', course.id)
   ElMessage.success(`已选择课程：${course.name}`)
 }
 
@@ -609,6 +563,7 @@ const handleUnselectCourse = (courseId) => {
     course.isSelected = false
   }
   selectedCourses.value = selectedCourses.value.filter(c => c.id !== courseId)
+  console.log('🚫 取消选择课程，ID:', courseId)
   ElMessage.info('已取消选择')
 }
 
@@ -617,6 +572,11 @@ const handleRemoveSelected = (courseId) => {
 }
 
 const handleConfirmSelection = async () => {
+  if (selectedCourses.value.length === 0) {
+    ElMessage.warning('请先选择课程')
+    return
+  }
+
   try {
     await ElMessageBox.confirm(
       `确认选择这 ${selectedCourses.value.length} 门课程吗？`,
@@ -628,15 +588,134 @@ const handleConfirmSelection = async () => {
       }
     )
 
-    ElMessage.success('选课成功！')
-    selectedCourses.value = []
-    allCourses.value.forEach(c => {
-      if (c.isSelected) {
-        c.isSelected = false
+    // 调用API确认选课
+    confirmSelectionLoading.value = true
+    
+    // 保存当前选择状态，以防失败时需要恢复
+    const originalSelection = [...selectedCourses.value]
+    const courseIds = selectedCourses.value.map(course => course.id)
+    
+    console.log('📚 确认选课，课程IDs:', courseIds)
+    console.log('请求URL:', 'http://192.168.1.141:8082/api/courses/confirm-selection')
+    console.log('提交数据:', { courseIds })
+    
+    const response = await courseApi.confirmSelection(courseIds)
+    console.log('📝 选课确认响应:', response)
+    
+    // 检查响应格式
+    if (response && typeof response === 'object' && 'code' in response) {
+      console.log('🏷️ 选课标准格式响应，code:', response.code, 'message:', response.message)
+      
+      const successCodes = [200, 0, 201, 204]
+      if (successCodes.includes(response.code)) {
+        console.log('✅ 选课成功，响应码:', response.code)
+        
+        // 检查是否有部分失败的情况
+        if (response.data && response.data.failedCourses && response.data.successfulCourses) {
+          const successful = response.data.successfulCourses
+          const failed = response.data.failedCourses
+          
+          if (failed.length > 0) {
+            ElMessage.warning(`成功选择 ${successful.length} 门课程，${failed.length} 门课程选择失败`)
+            console.log('⚠️ 部分课程选课失败:', failed)
+          } else {
+            ElMessage.success(`成功选择 ${successful.length} 门课程！`)
+          }
+          
+          // 更新成功的课程状态
+          successful.forEach(courseId => {
+            const course = allCourses.value.find(c => c.id === courseId)
+            if (course) {
+              course.isSelected = false
+              course.enrolled = Math.min(course.enrolled + 1, course.capacity)
+            }
+          })
+          
+          // 移除成功的课程，保留失败的让用户可以重试
+          selectedCourses.value = selectedCourses.value.filter(sc => 
+            failed.find(fc => fc.courseId === sc.id)
+          )
+          
+        } else {
+          // 全部成功的情况
+          ElMessage.success(`成功选择 ${selectedCourses.value.length} 门课程！`)
+          
+          // 更新选课状态
+          selectedCourses.value.forEach(selectedCourse => {
+            const course = allCourses.value.find(c => c.id === selectedCourse.id)
+            if (course) {
+              course.isSelected = false // 重置选择状态
+              course.enrolled = Math.min(course.enrolled + 1, course.capacity) // 更新已选人数
+            }
+          })
+          
+          // 清空已选课程列表
+          selectedCourses.value = []
+        }
+        
+        // 刷新推荐课程
+        refreshRecommendations()
+        
+      } else {
+        console.log('❌ 选课失败，错误码:', response.code, '错误信息:', response.message)
+        const errorMsg = response.message && response.message.trim() !== '' ? response.message : '选课失败，请稍后重试'
+        ElMessage.error(errorMsg)
       }
-    })
-  } catch {
-    // 用户取消
+    } else {
+      // 非标准格式，认为成功
+      console.log('📄 选课非标准格式响应，认为成功')
+      ElMessage.success(`成功选择 ${selectedCourses.value.length} 门课程！`)
+      
+      // 更新选课状态
+      selectedCourses.value.forEach(selectedCourse => {
+        const course = allCourses.value.find(c => c.id === selectedCourse.id)
+        if (course) {
+          course.isSelected = false
+          course.enrolled = Math.min(course.enrolled + 1, course.capacity)
+        }
+      })
+      
+      selectedCourses.value = []
+      refreshRecommendations()
+    }
+    
+  } catch (error) {
+    if (error === 'cancel') {
+      // 用户取消操作
+      return
+    }
+    
+    console.error('选课失败:', error)
+    console.error('错误详情:', error.response?.data)
+    
+    let errorMessage = '选课失败，请稍后重试'
+    if (error.response?.status === 400) {
+      errorMessage = '选课参数错误，请检查课程信息'
+    } else if (error.response?.status === 403) {
+      errorMessage = '选课时间已过或权限不足'
+    } else if (error.response?.status === 409) {
+      errorMessage = '部分课程已选或人数已满'
+    } else if (error.response?.status === 500) {
+      errorMessage = '服务器内部错误，请稍后重试'
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message
+    }
+    
+    ElMessage.error(errorMessage)
+    
+    // 如果是服务器错误，恢复选择状态，让用户可以重试
+    if (error.response?.status >= 500) {
+      console.log('🔄 服务器错误，恢复选择状态')
+      selectedCourses.value = originalSelection
+      originalSelection.forEach(originalCourse => {
+        const course = allCourses.value.find(c => c.id === originalCourse.id)
+        if (course) {
+          course.isSelected = true
+        }
+      })
+    }
+  } finally {
+    confirmSelectionLoading.value = false
   }
 }
 
@@ -670,21 +749,100 @@ const generateDefaultSyllabus = (courseName) => {
 }
 
 // 课程推荐逻辑
-const refreshRecommendations = () => {
-  // 基于已选课程和评分推荐
-  const highRatedCourses = allCourses.value
-    .filter(c => c.rating >= 4.5 && !c.isSelected)
-    .sort((a, b) => b.rating - a.rating)
-    .slice(0, 3)
-  
-  recommendedCourses.value = highRatedCourses.map(course => ({
-    ...course,
-    recommendReason: course.rating >= 4.8 ? '高评分课程' : '热门推荐'
-  }))
+const refreshRecommendations = async () => {
+  recommendationsLoading.value = true
+  try {
+    console.log('🌟 获取推荐课程...')
+    console.log('请求URL: http://192.168.1.141:8082/api/courses/recommended')
+    
+    // 检查是否有有效的token
+    const token = localStorage.getItem('token')
+    console.log('🔑 当前token状态:', token ? '已存在' : '不存在')
+    if (token) {
+      console.log('🔑 Token信息:', token.substring(0, 20) + '...')
+    } else {
+      console.warn('⚠️ 没有token，推荐课程API可能失败')
+    }
+    
+    const response = await courseApi.getRecommendedCourses()
+    console.log('📝 推荐课程响应:', response)
+    
+    // 处理不同的响应格式
+    let courses = []
+    if (response && response.data) {
+      // 如果响应有data字段
+      if (Array.isArray(response.data)) {
+        courses = response.data
+      } else if (response.data.list && Array.isArray(response.data.list)) {
+        courses = response.data.list
+      }
+    } else if (Array.isArray(response)) {
+      // 直接是数组
+      courses = response
+    } else if (response && response.code && Array.isArray(response.list)) {
+      // 标准格式
+      courses = response.list
+    }
+    
+    // 处理推荐课程数据
+    if (courses.length > 0) {
+      // 为推荐课程添加推荐原因
+      recommendedCourses.value = courses.map(course => {
+        // 查找对应的完整课程信息
+        const fullCourse = allCourses.value.find(c => c.id === course.id)
+        return {
+          ...fullCourse,
+          ...course,
+          recommendReason: course.recommendReason || getRecommendReason(course)
+        }
+      })
+      console.log('✅ 推荐课程加载成功，数量:', recommendedCourses.value.length)
+    } else {
+      console.log('⚠️ 推荐课程为空')
+      recommendedCourses.value = []
+    }
+    
+  } catch (error) {
+    console.error('❌ 获取推荐课程失败:', error)
+    recommendedCourses.value = []
+    
+    // 特殊处理认证错误
+    if (error.message === 'NEED_AUTH' || error.response?.status === 401) {
+      console.warn('🔐 推荐课程需要认证，可能需要重新登录')
+      ElMessage.warning('请先登录以获取推荐课程')
+      
+      // 清除无效的认证信息
+      localStorage.removeItem('token')
+      localStorage.removeItem('refreshToken')
+      localStorage.removeItem('isAuthenticated')
+    } else if (error.response?.status === 403) {
+      ElMessage.error('没有权限访问推荐课程')
+    } else if (error.response?.status >= 500) {
+      ElMessage.error('服务器错误，请稍后重试')
+    } else {
+      ElMessage.error('获取推荐课程失败，请稍后重试')
+    }
+  } finally {
+    recommendationsLoading.value = false
+  }
 }
 
-// 初始化推荐
-refreshRecommendations()
+// 根据课程属性生成推荐原因
+const getRecommendReason = (course) => {
+  if (course.rating >= 4.8) return '高评分课程'
+  if (course.enrolled / course.capacity >= 0.8) return '热门课程'
+  if (course.category === '前端开发' || course.category === '后端开发') return '技术热门'
+  return '为您推荐'
+}
+
+// 组件初始化
+onMounted(async () => {
+  // 同时加载课程列表和推荐课程
+  await Promise.all([
+    loadCourses(),
+    refreshRecommendations()
+  ])
+})
 
 const handleSelectFromDetail = () => {
   if (selectedCourseDetail.value) {
@@ -747,6 +905,11 @@ const handleCurrentChange = (val) => {
         margin-right: 8px;
       }
     }
+  }
+
+  .courses-loading {
+    margin-bottom: 24px;
+    padding: 40px;
   }
 
   .courses-grid {
@@ -906,6 +1069,10 @@ const handleCurrentChange = (val) => {
       display: flex;
       justify-content: space-between;
       align-items: center;
+    }
+
+    .recommendations-loading {
+      padding: 20px;
     }
 
     .recommendations-list {
