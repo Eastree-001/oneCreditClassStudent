@@ -132,10 +132,10 @@ request.interceptors.request.use(
     } else {
       console.log('⚠️ 没有有效的token，请求可能会失败')
       
-      // 对于需要认证的API，可以在这里跳过请求或返回特定错误
+      // 对于需要认证的API，记录警告但继续执行
       if (config.url.includes('/courses/recommended') || config.url.includes('/user')) {
         console.warn('🚨 需要认证的API缺少token:', config.url)
-        throw new Error('NEED_AUTH')
+        console.log('⚠️ 请求将继续执行，但可能会因认证失败而被拒绝')
       }
     }
     

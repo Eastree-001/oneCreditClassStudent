@@ -11,6 +11,12 @@ export const courseApi = {
     return request.post(`/courses/${courseId}/select`)
   },
   
+  // 删除已选课程
+  unselectCourse(courseId) {
+    console.log(`🗑️ 删除已选课程: /courses/${courseId}/select`)
+    return request.delete(`/courses/${courseId}/select`)
+  },
+  
   // 获取学习进度
   getProgress(courseId) {
     return request.get(`/courses/${courseId}/progress`)
@@ -25,5 +31,29 @@ export const courseApi = {
   getRecommendedCourses() {
     console.log('📡 调用推荐课程API: /courses/recommended')
     return request.get('/courses/recommended')
+  },
+  
+  // 获取单个课程详情（推荐课程详情）
+  getCourseDetail(courseId) {
+    console.log(`🔍 获取课程详情: /courses/${courseId}`)
+    return request.get(`/courses/${courseId}`)
+  },
+  
+  // 获取课程评价列表
+  getCourseReviews(courseId) {
+    console.log(`📝 获取课程评价: /courses/${courseId}/reviews`)
+    return request.get(`/courses/${courseId}/reviews`)
+  },
+  
+  // 获取课程指导教师信息
+  getCourseTeacher(courseId) {
+    console.log(`👨‍🏫 获取课程教师: /courses/${courseId}/teacher`)
+    return request.get(`/courses/${courseId}/teacher`)
+  },
+  
+  // 批量获取课程教师信息
+  getBatchCourseTeachers(courseIds) {
+    console.log(`👥 批量获取课程教师: /courses/teachers`)
+    return request.post('/courses/teachers', { courseIds })
   }
 }

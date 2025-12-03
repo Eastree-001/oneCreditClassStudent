@@ -1,8 +1,28 @@
 <template>
   <div class="project-training-container">
     <div class="page-header">
-      <h1 class="page-title">项目实训</h1>
-      <p class="page-desc">选择企业真实项目进行实训，提升实战能力</p>
+      <div class="header-content">
+        <div>
+          <h1 class="page-title">项目实训</h1>
+          <p class="page-desc">选择企业真实项目进行实训，提升实战能力</p>
+        </div>
+        <div class="header-actions">
+          <el-button 
+            :type="showMyProjects ? 'default' : 'primary'" 
+            @click="handleShowAllProjects"
+          >
+            <el-icon><Collection /></el-icon>
+            全部项目
+          </el-button>
+          <el-button 
+            :type="showMyProjects ? 'primary' : 'default'" 
+            @click="handleShowMyProjects"
+          >
+            <el-icon><User /></el-icon>
+            我的项目
+          </el-button>
+        </div>
+      </div>
     </div>
 
     <!-- 统计信息 -->
@@ -24,8 +44,8 @@
       </el-col>
     </el-row>
 
-    <!-- 筛选条件 -->
-    <el-card class="filter-card" shadow="never">
+    <!-- 筛选条件 - 只在显示全部项目时显示 -->
+    <el-card v-if="!showMyProjects" class="filter-card" shadow="never">
       <el-form :inline="true" :model="filterForm" class="filter-form">
         <el-form-item label="项目类型">
           <el-select v-model="filterForm.type" placeholder="全部" clearable style="width: 150px">
@@ -75,8 +95,19 @@
       </el-form>
     </el-card>
 
+    <!-- 我的项目提示信息 -->
+    <el-alert
+      v-if="showMyProjects"
+      title="我的项目"
+      type="info"
+      :description="`当前显示您参与的项目，共 ${filteredProjects.length} 个`"
+      show-icon
+      :closable="false"
+      style="margin-bottom: 20px;"
+    />
+
     <!-- 项目列表 -->
-    <div class="projects-grid">
+    <div v-loading="loading" class="projects-grid">
       <el-card
         v-for="project in filteredProjects"
         :key="project.id"
@@ -141,11 +172,29 @@
             </el-tag>
           </div>
 
+          <!-- 项目进度信息 - 仅在我的项目中显示 -->
+          <div v-if="showMyProjects && project.progress" class="project-progress">
+            <div class="progress-header">
+              <span class="progress-label">项目进度：</span>
+              <span class="progress-text">{{ project.progress.percentage || 0 }}%</span>
+            </div>
+            <el-progress 
+              :percentage="project.progress.percentage || 0" 
+              :status="project.progress.status || 'normal'"
+              :show-text="false"
+              class="progress-bar"
+            />
+            <div v-if="project.progress.description" class="progress-description">
+              {{ project.progress.description }}
+            </div>
+          </div>
+
           <div class="project-footer">
             <el-button
               type="primary"
               :disabled="project.status !== '可报名' || project.enrolled >= project.capacity"
               @click="handleApply(project)"
+              v-if="!showMyProjects"
             >
               <el-icon><CircleCheck /></el-icon>
               {{ project.status === '可报名' && project.enrolled < project.capacity ? '立即报名' : '不可报名' }}
@@ -153,6 +202,25 @@
             <el-button @click="handleViewDetail(project)">
               <el-icon><View /></el-icon>
               查看详情
+            </el-button>
+            <el-button
+              type="success"
+              @click="handleRefreshProgress(project)"
+              v-if="showMyProjects"
+              :loading="refreshingProgress && refreshingProjectId === project.id"
+              size="small"
+            >
+              <el-icon><Refresh /></el-icon>
+              刷新进度
+            </el-button>
+            <el-button
+              type="danger"
+              @click="handleDeleteProject(project)"
+              v-if="showMyProjects"
+              :loading="deleting && deletingProjectId === project.id"
+            >
+              <el-icon><Delete /></el-icon>
+              删除报名
             </el-button>
           </div>
         </div>
@@ -298,7 +366,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Search,
@@ -312,9 +380,12 @@ import {
   Calendar,
   Collection,
   TrendCharts,
-  DataAnalysis
+  DataAnalysis,
+  Delete,
+  Refresh
 } from '@element-plus/icons-vue'
 import { themeColors } from '@/styles/variables.js'
+import { projectApi, userApi } from '@/api'
 
 const filterForm = ref({
   type: '',
@@ -330,6 +401,13 @@ const applyDialogVisible = ref(false)
 const selectedProjectDetail = ref(null)
 const selectedProject = ref(null)
 const applyFormRef = ref(null)
+const showMyProjects = ref(false)
+const myProjects = ref([])
+const loading = ref(false)
+const deleting = ref(false)
+const deletingProjectId = ref(null)
+const refreshingProgress = ref(false)
+const refreshingProjectId = ref(null)
 
 const applyForm = ref({
   name: '',
@@ -353,28 +431,29 @@ const applyRules = {
   introduction: [{ required: true, message: '请输入个人简介', trigger: 'blur' }]
 }
 
+// 统计数据 - 初始化为默认值，会通过API更新
 const statistics = ref([
   {
     label: '可报名项目',
-    value: '12',
+    value: '0',
     icon: 'Collection',
     color: themeColors.gradientPrimary
   },
   {
     label: '已报名项目',
-    value: '3',
+    value: '0',
     icon: 'Briefcase',
     color: themeColors.gradientPink
   },
   {
     label: '已完成项目',
-    value: '2',
+    value: '0',
     icon: 'Trophy',
     color: themeColors.gradientBlue
   },
   {
     label: '获得学分',
-    value: '2',
+    value: '0',
     icon: 'DataAnalysis',
     color: themeColors.gradientGreen
   }
@@ -546,23 +625,33 @@ const allProjects = ref([
 ])
 
 const filteredProjects = computed(() => {
-  let result = allProjects.value
+  // 根据显示模式选择数据源
+  let result = showMyProjects.value ? myProjects.value : allProjects.value
 
-  if (filterForm.value.type) {
-    result = result.filter(p => p.type === filterForm.value.type)
-  }
+  // 只有在显示全部项目时才进行筛选
+  if (!showMyProjects.value) {
+    if (filterForm.value.type) {
+      result = result.filter(p => p.type === filterForm.value.type)
+    }
 
-  if (filterForm.value.difficulty) {
-    result = result.filter(p => p.difficulty === filterForm.value.difficulty)
-  }
+    if (filterForm.value.difficulty) {
+      result = result.filter(p => p.difficulty === filterForm.value.difficulty)
+    }
 
-  if (filterForm.value.status) {
-    result = result.filter(p => p.status === filterForm.value.status)
-  }
+    if (filterForm.value.status) {
+      result = result.filter(p => p.status === filterForm.value.status)
+    }
 
-  if (filterForm.value.keyword) {
-    const keyword = filterForm.value.keyword.toLowerCase()
-    result = result.filter(p => p.name.toLowerCase().includes(keyword))
+    if (filterForm.value.keyword) {
+      const keyword = filterForm.value.keyword.toLowerCase()
+      result = result.filter(p => p.name.toLowerCase().includes(keyword))
+    }
+  } else {
+    // 我的项目模式下，只支持按关键词搜索
+    if (filterForm.value.keyword) {
+      const keyword = filterForm.value.keyword.toLowerCase()
+      result = result.filter(p => p.name.toLowerCase().includes(keyword))
+    }
   }
 
   return result
@@ -583,30 +672,208 @@ const handleReset = () => {
   currentPage.value = 1
 }
 
-const handleApply = (project) => {
+// 显示全部项目
+const handleShowAllProjects = async () => {
+  console.log('📋 显示全部项目')
+  showMyProjects.value = false
+  currentPage.value = 1
+  // 重置筛选条件
+  filterForm.value = {
+    type: '',
+    difficulty: '',
+    status: '',
+    keyword: ''
+  }
+  
+  // 加载全部项目数据
+  await refreshProjectData()
+}
+
+// 显示我的项目
+const handleShowMyProjects = async () => {
+  console.log('👤 显示我的项目')
+  showMyProjects.value = true
+  currentPage.value = 1
+  
+  // 加载我的项目数据
+  await loadMyProjects()
+}
+
+// 加载我的项目
+const loadMyProjects = async () => {
+  try {
+    loading.value = true
+    console.log('🔄 正在加载我的项目...')
+    
+    const response = await projectApi.getMyProjects()
+    console.log('📋 我的项目响应:', response)
+    
+    let projects = []
+    if (response && response.data) {
+      // 根据数据格式处理
+      if (Array.isArray(response.data)) {
+        projects = response.data
+      } else if (response.data.list && Array.isArray(response.data.list)) {
+        projects = response.data.list
+      } else if (response.data.projects && Array.isArray(response.data.projects)) {
+        projects = response.data.projects
+      } else {
+        console.warn('⚠️ 无法识别的数据格式')
+        projects = []
+      }
+      
+      // 为每个已参与的项目获取进度信息
+      console.log('📈 开始获取项目进度信息...')
+      const projectsWithProgress = await Promise.allSettled(
+        projects.map(async (project) => {
+          try {
+            console.log(`🔍 获取项目 ${project.id} 的进度...`)
+            const progressResponse = await projectApi.getProjectProgress(project.id)
+            console.log(`📊 项目 ${project.id} 进度响应:`, progressResponse)
+            
+            // 添加进度信息到项目对象
+            return {
+              ...project,
+              progress: progressResponse?.data || progressResponse || null
+            }
+          } catch (error) {
+            console.warn(`⚠️ 获取项目 ${project.id} 进度失败:`, error)
+            // 即使获取进度失败，也返回项目信息，只是进度为null
+            return {
+              ...project,
+              progress: null
+            }
+          }
+        })
+      )
+      
+      // 处理结果，只保留成功的结果
+      myProjects.value = projectsWithProgress
+        .filter(result => result.status === 'fulfilled')
+        .map(result => result.value)
+      
+      console.log(`✅ 成功加载 ${myProjects.value.length} 个我的项目（包含进度信息）`)
+      ElMessage.success(`成功加载 ${myProjects.value.length} 个我的项目`)
+    } else {
+      console.log('📝 暂无我的项目数据')
+      myProjects.value = []
+      ElMessage.info('暂无我的项目')
+    }
+  } catch (error) {
+    console.error('❌ 加载我的项目失败:', error)
+    myProjects.value = []
+    ElMessage.error('加载我的项目失败：' + (error.message || '未知错误'))
+  } finally {
+    loading.value = false
+  }
+}
+
+// 获取用户信息
+const getUserInfo = async () => {
+  try {
+    // 先从localStorage获取
+    const savedUserInfo = localStorage.getItem('userInfo')
+    let userInfo = null
+    
+    if (savedUserInfo) {
+      try {
+        userInfo = JSON.parse(savedUserInfo)
+        console.log('👤 从localStorage获取用户信息:', userInfo)
+      } catch (error) {
+        console.warn('⚠️ 解析用户信息失败:', error)
+      }
+    }
+    
+    // 尝试从API获取最新用户信息
+    try {
+      const response = await userApi.getUserInfo()
+      if (response && response.data) {
+        userInfo = response.data
+        console.log('✅ 从API获取最新用户信息:', userInfo)
+        // 更新localStorage
+        localStorage.setItem('userInfo', JSON.stringify(userInfo))
+      }
+    } catch (apiError) {
+      console.log('📝 API获取用户信息失败，使用缓存数据:', apiError.message)
+    }
+    
+    return userInfo
+  } catch (error) {
+    console.error('❌ 获取用户信息失败:', error)
+    return null
+  }
+}
+
+const handleApply = async (project) => {
   selectedProject.value = project
+  
+  // 获取最新用户信息
+  const userInfo = await getUserInfo()
+  
+  // 设置表单默认值
   applyForm.value = {
-    name: '张三',
-    studentId: '2021001',
-    phone: '',
-    email: '',
+    name: userInfo?.name || userInfo?.username || '',
+    studentId: userInfo?.studentId || '',
+    phone: userInfo?.phone || userInfo?.mobile || '', // 支持多种手机号字段名
+    email: userInfo?.email || '',
     introduction: ''
   }
+  
+  console.log('📋 报名表单默认值:', applyForm.value)
+  
+  // 如果手机号为空，提示用户填写
+  if (!applyForm.value.phone) {
+    console.log('📱 手机号字段为空，需要用户手动填写')
+  }
+  
   applyDialogVisible.value = true
 }
 
 const handleSubmitApply = async () => {
-  if (!applyFormRef.value) return
+  if (!applyFormRef.value || !selectedProject.value) {
+    ElMessage.error('请选择要报名的项目')
+    return
+  }
 
   try {
-    await applyFormRef.value.validate()
-    ElMessage.success('报名成功！请等待审核')
-    applyDialogVisible.value = false
-    if (selectedProject.value) {
-      selectedProject.value.enrolled++
+    // 表单验证
+    console.log('📋 开始表单验证...')
+    const formValid = await applyFormRef.value.validate().catch(err => {
+      console.warn('⚠️ 表单验证失败:', err)
+      return false
+    })
+    
+    if (!formValid) {
+      ElMessage.error('请检查并完善报名信息')
+      return
     }
-  } catch {
-    ElMessage.error('请填写完整信息')
+
+    // 项目状态验证
+    if (!validateProjectApplication()) {
+      return
+    }
+
+    // 准备报名数据
+    const applicationData = prepareApplicationData()
+    console.log('📝 提交项目报名申请:')
+    console.log('   项目ID:', selectedProject.value.id)
+    console.log('   项目名称:', selectedProject.value.name)
+    console.log('   申请数据:', applicationData)
+
+    // 发送报名请求
+    const response = await projectApi.applyProject(selectedProject.value.id, applicationData)
+    console.log('📝 项目报名响应:', response)
+
+    // 处理响应结果
+    if (handleApplicationResponse(response)) {
+      // 报名成功处理
+      handleApplicationSuccess()
+    }
+
+  } catch (error) {
+    console.error('❌ 项目报名失败:', error)
+    console.error('错误详情:', error.response?.data)
+    handleApplicationError(error)
   }
 }
 
@@ -648,6 +915,623 @@ const getStatusType = (status) => {
   }
   return map[status] || 'info'
 }
+
+// 验证项目报名条件
+const validateProjectApplication = () => {
+  const project = selectedProject.value
+  
+  if (!project) {
+    ElMessage.error('未选择项目')
+    return false
+  }
+
+  // 检查项目状态
+  if (project.status !== '可报名') {
+    const statusMap = {
+      '进行中': '该项目已开始，无法报名',
+      '已结束': '该项目已结束，无法报名',
+      '已满员': '该项目报名人数已满'
+    }
+    ElMessage.error(statusMap[project.status] || '项目状态不允许报名')
+    return false
+  }
+
+  // 检查报名人数
+  if (project.enrolled >= project.capacity) {
+    ElMessage.error('该项目报名人数已满，请选择其他项目')
+    return false
+  }
+
+  // 检查截止时间
+  if (project.deadline) {
+    const deadline = new Date(project.deadline)
+    const now = new Date()
+    if (now > deadline) {
+      ElMessage.error('报名已截止，请选择其他项目')
+      return false
+    }
+  }
+
+  console.log('✅ 项目报名条件验证通过')
+  return true
+}
+
+// 准备报名数据
+const prepareApplicationData = () => {
+  const formData = {
+    // 基本信息
+    name: applyForm.value.name.trim(),
+    studentId: applyForm.value.studentId.trim(),
+    phone: applyForm.value.phone.trim(),
+    email: applyForm.value.email.trim().toLowerCase(),
+    introduction: applyForm.value.introduction.trim(),
+    
+    // 项目信息
+    projectId: selectedProject.value.id,
+    projectName: selectedProject.value.name,
+    company: selectedProject.value.company,
+    type: selectedProject.value.type,
+    
+    // 时间信息
+    applicationTime: new Date().toISOString(),
+    clientInfo: {
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      language: navigator.language
+    }
+  }
+
+  return formData
+}
+
+// 处理报名响应
+const handleApplicationResponse = (response) => {
+  if (!response) {
+    ElMessage.error('服务器无响应，请稍后重试')
+    return false
+  }
+
+  // 检查响应格式
+  if (typeof response === 'object' && 'code' in response) {
+    console.log('🏷️ 标准格式响应检测到')
+    
+    const successCodes = [200, 0, 201, 204]
+    if (successCodes.includes(response.code)) {
+      console.log('✅ 报名成功')
+      return true
+    } else {
+      const errorMessage = response.message || '报名失败，请稍后重试'
+      console.log(`❌ 报名失败: ${errorMessage}`)
+      ElMessage.error(errorMessage)
+      return false
+    }
+  } else {
+    // 非标准格式，假设成功
+    console.log('📄 非标准响应格式，假设成功')
+    return true
+  }
+}
+
+// 处理报名成功
+const handleApplicationSuccess = () => {
+  console.log('🎉 处理报名成功后续流程...')
+  
+  // 显示成功消息
+  ElMessage({
+    message: '🎉 报名成功！请等待审核',
+    type: 'success',
+    duration: 5000,
+    showClose: true
+  })
+
+  // 关闭对话框
+  applyDialogVisible.value = false
+  
+  // 重置表单
+  applyForm.value = {
+    name: '',
+    studentId: '',
+    phone: '',
+    email: '',
+    introduction: ''
+  }
+  
+  if (applyFormRef.value) {
+    applyFormRef.value.clearValidate()
+  }
+
+  // 更新项目报名人数（本地乐观更新）
+  if (selectedProject.value) {
+    selectedProject.value.enrolled++
+  }
+
+  // 刷新数据和统计信息
+  refreshProjectData()
+  fetchProjectStats() // 重新获取统计数据
+}
+
+// 处理报名错误
+const handleApplicationError = (error) => {
+  console.error('❌ 报名错误详情:', {
+    message: error.message,
+    status: error.response?.status,
+    statusText: error.response?.statusText,
+    data: error.response?.data
+  })
+
+  // 网络错误处理
+  if (!error.response) {
+    ElMessage.error('网络连接失败，请检查网络后重试')
+    return
+  }
+
+  // HTTP状态码处理
+  const status = error.response.status
+  const data = error.response.data
+
+  let errorMessage = '报名失败，请稍后重试'
+
+  switch (status) {
+    case 400:
+      errorMessage = data?.message || '报名信息格式错误'
+      break
+    case 401:
+      errorMessage = '请先登录'
+      break
+    case 403:
+      errorMessage = data?.message || '权限不足或项目不可报名'
+      break
+    case 404:
+      errorMessage = '项目不存在，请刷新页面后重试'
+      break
+    case 409:
+      errorMessage = data?.message || '您已经报名过该项目'
+      break
+    case 422:
+      errorMessage = data?.message || '报名信息验证失败'
+      break
+    case 500:
+      errorMessage = '服务器内部错误，请稍后重试'
+      break
+    default:
+      errorMessage = data?.message || `报名失败 (错误码: ${status})`
+  }
+
+  ElMessage.error(errorMessage)
+}
+
+// 验证项目删除条件
+const validateProjectDeletion = (project) => {
+  console.log('🔍 验证项目删除条件:', project)
+  
+  if (!project) {
+    ElMessage.error('未选择项目')
+    return false
+  }
+
+  // 检查项目状态 - 某些状态下可能不允许删除报名
+  const deletableStatuses = ['可报名', '申请中', '已报名']
+  if (project.status && !deletableStatuses.includes(project.status)) {
+    const statusMap = {
+      '进行中': '项目已开始，无法删除报名',
+      '已结束': '项目已结束，无法删除报名',
+      '已完成': '项目已完成，无法删除报名'
+    }
+    const message = statusMap[project.status] || `项目状态为"${project.status}"，无法删除报名`
+    ElMessage.warning(message)
+    return false
+  }
+
+  console.log('✅ 项目删除条件验证通过')
+  return true
+}
+
+// 删除项目报名
+// 刷新单个项目的进度
+const handleRefreshProgress = async (project) => {
+  try {
+    refreshingProgress.value = true
+    refreshingProjectId.value = project.id
+    
+    console.log(`🔄 正在刷新项目进度: ${project.name} (ID: ${project.id})`)
+    
+    const progressResponse = await projectApi.getProjectProgress(project.id)
+    console.log(`📊 项目 ${project.id} 新的进度响应:`, progressResponse)
+    
+    // 更新项目中对应的进度信息
+    const projectIndex = myProjects.value.findIndex(p => p.id === project.id)
+    if (projectIndex !== -1) {
+      myProjects.value[projectIndex].progress = progressResponse?.data || progressResponse || null
+      console.log(`✅ 项目 ${project.id} 进度更新成功`)
+    }
+    
+    ElMessage.success('项目进度刷新成功')
+  } catch (error) {
+    console.error(`❌ 刷新项目 ${project.id} 进度失败:`, error)
+    ElMessage.error('刷新项目进度失败：' + (error.message || '未知错误'))
+  } finally {
+    refreshingProgress.value = false
+    refreshingProjectId.value = null
+  }
+}
+
+const handleDeleteProject = async (project) => {
+  try {
+    // 检查项目状态是否允许删除报名
+    if (!validateProjectDeletion(project)) {
+      return
+    }
+
+    // 确认对话框
+    await ElMessageBox.confirm(
+      `确定要删除报名「${project.name}」吗？删除后将无法恢复。`,
+      '确认删除',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
+
+    // 开始删除
+    deleting.value = true
+    deletingProjectId.value = project.id
+
+    console.log(`🗑️ 正在删除项目报名: ${project.name} (ID: ${project.id})`)
+    console.log('📋 项目完整信息:', project)
+    
+    // 检查当前用户信息
+    try {
+      const userInfo = await getUserInfo()
+      console.log('👤 当前用户信息:', userInfo)
+    } catch (userError) {
+      console.warn('⚠️ 获取用户信息失败:', userError.message)
+    }
+
+    // 检查项目状态和属性
+    console.log('🔍 删除前检查:', {
+      projectId: project.id,
+      projectName: project.name,
+      projectStatus: project.status,
+      enrolled: project.enrolled,
+      capacity: project.capacity,
+      canDelete: validateProjectDeletion(project),
+      // 检查可能的时间相关字段
+      startTime: project.startTime || project.startDate,
+      endTime: project.endTime || project.endDate,
+      applicationTime: project.applicationTime || project.enrollmentTime,
+      currentTime: new Date().toISOString()
+    })
+
+    // 调用删除API
+    const response = await projectApi.cancelProjectApplication(project.id)
+    console.log('🗑️ 删除项目报名响应:', response)
+    console.log('📊 响应详细信息:', {
+      code: response?.code,
+      message: response?.message,
+      data: response?.data,
+      errors: response?.errors
+    })
+
+    // 处理删除成功
+    ElMessage({
+      message: '✅ 删除报名成功！',
+      type: 'success',
+      duration: 3000
+    })
+
+    // 从我的项目列表中移除该项目
+    const index = myProjects.value.findIndex(p => p.id === project.id)
+    if (index > -1) {
+      myProjects.value.splice(index, 1)
+    }
+
+    // 如果当前是在全部项目模式下，更新对应项目的报名人数
+    if (!showMyProjects.value) {
+      const allProjectIndex = allProjects.value.findIndex(p => p.id === project.id)
+      if (allProjectIndex > -1) {
+        allProjects.value[allProjectIndex].enrolled = Math.max(0, allProjects.value[allProjectIndex].enrolled - 1)
+      }
+    }
+
+    // 刷新统计数据
+    fetchProjectStats()
+
+  } catch (error) {
+    // 用户取消删除不显示错误消息
+    if (error === 'cancel') {
+      console.log('👤 用户取消删除操作')
+      return
+    }
+
+    console.error('❌ 删除项目报名失败:', error)
+    console.error('错误详情:', error.response?.data)
+
+    // 使用调试工具分析错误
+    if (window.debug400Error) {
+      window.debug400Error.logErrorDetails(error, project)
+      window.debug400Error.analyzePossibleCauses(project)
+      window.debug400Error.generateDebugReport(error, project)
+      
+      // 尝试自动修复
+      if (error.response?.status === 400) {
+        window.debug400Error.attemptFixes(project)
+      }
+    }
+
+    // 网络错误处理
+    if (!error.response) {
+      ElMessage.error('网络连接失败，请检查网络后重试')
+      return
+    }
+
+    // HTTP状态码处理
+    const status = error.response.status
+    const data = error.response.data
+
+    let errorMessage = '删除报名失败，请稍后重试'
+    let shouldRefresh = false
+
+    switch (status) {
+      case 400:
+        // 尝试从多个来源获取错误信息
+        let errorDetails = []
+        
+        // 从主message获取
+        if (data?.message) {
+          errorDetails.push(data.message)
+        }
+        
+        // 从errors对象获取详细信息
+        if (data?.errors && typeof data.errors === 'object') {
+          Object.entries(data.errors).forEach(([key, value]) => {
+            if (value && typeof value === 'string') {
+              errorDetails.push(`${key}: ${value}`)
+            } else if (value && value.message) {
+              errorDetails.push(`${key}: ${value.message}`)
+            }
+          })
+        }
+        
+        // 合并错误信息
+        errorMessage = errorDetails.join('\n') || '请求参数错误'
+        
+        // 根据错误内容提供针对性建议
+        const errorText = errorMessage.toLowerCase()
+        if (errorText.includes('已开始') || errorText.includes('进行中') || errorText.includes('started')) {
+          errorMessage += '\n\n💡 项目已开始，请联系管理员处理'
+        } else if (errorText.includes('已结束') || errorText.includes('已完成') || errorText.includes('ended') || errorText.includes('completed')) {
+          errorMessage += '\n\n💡 项目已结束，无法删除报名记录'
+        } else if (errorText.includes('不存在') || errorText.includes('无效') || errorText.includes('not found') || errorText.includes('invalid')) {
+          errorMessage += '\n\n💡 建议刷新页面后重试'
+          shouldRefresh = true
+        } else if (errorText.includes('已满') || errorText.includes('full') || errorText.includes('capacity')) {
+          errorMessage += '\n\n💡 项目人数已满，请联系管理员'
+        } else if (errorText.includes('重复') || errorText.includes('duplicate') || errorText.includes('already')) {
+          errorMessage += '\n\n💡 操作重复，请刷新页面查看最新状态'
+          shouldRefresh = true
+        } else {
+          errorMessage += '\n\n💡 请检查项目状态或联系技术支持'
+        }
+        
+        console.log('🔍 400错误详细信息:', {
+          message: data?.message,
+          errors: data?.errors,
+          fullData: data,
+          projectId: project.id,
+          projectStatus: project.status,
+          enrollmentInfo: {
+            enrolled: project.enrolled,
+            capacity: project.capacity,
+            applicationTime: project.applicationTime,
+            applicationStatus: project.applicationStatus
+          }
+        })
+        
+        // 尝试解析errors对象的具体内容
+        if (data?.errors && typeof data.errors === 'object') {
+          console.log('🔍 Errors对象详情:', Object.keys(data.errors))
+          Object.entries(data.errors).forEach(([key, value]) => {
+            console.log(`   ${key}:`, value)
+          })
+        }
+        break
+      case 401:
+        errorMessage = '登录已过期，请重新登录后重试'
+        break
+      case 403:
+        errorMessage = data?.message || '权限不足，无法删除该报名\n\n💡 请确认您有权限删除此项目的报名'
+        break
+      case 404:
+        errorMessage = '项目报名不存在，请刷新页面后重试\n\n💡 该报名可能已被删除'
+        shouldRefresh = true
+        break
+      case 409:
+        errorMessage = data?.message || '项目状态不允许删除报名\n\n💡 项目可能已开始或结束'
+        break
+      case 500:
+        errorMessage = '服务器内部错误，请稍后重试\n\n💡 如问题持续，请联系技术支持'
+        break
+      default:
+        errorMessage = `${data?.message || data?.errors?.message || `删除失败 (错误码: ${status})`}\n\n💡 请稍后重试或联系技术支持`
+    }
+
+    // 显示错误消息
+    ElMessage.error({
+      message: errorMessage,
+      duration: 5000,
+      showClose: true
+    })
+
+    // 如果需要刷新页面，给出提示
+    if (shouldRefresh) {
+      setTimeout(() => {
+        ElMessageBox.confirm(
+          '检测到数据可能已过期，是否刷新页面获取最新数据？',
+          '刷新数据',
+          {
+            confirmButtonText: '刷新页面',
+            cancelButtonText: '稍后处理',
+            type: 'info'
+          }
+        ).then(() => {
+          window.location.reload()
+        }).catch(() => {
+          // 用户选择稍后处理
+        })
+      }, 1000)
+    }
+
+    return // 避免重复显示错误消息
+
+  } finally {
+    deleting.value = false
+    deletingProjectId.value = null
+  }
+}
+
+// 获取项目统计数据
+const fetchProjectStats = async () => {
+  try {
+    console.log('📊 获取项目统计数据...')
+    const response = await projectApi.getProjectStats()
+    
+    if (response && response.data) {
+      console.log('✅ 统计数据获取成功:', response.data)
+      updateStatistics(response.data)
+    } else {
+      console.log('📝 后端暂无统计数据，使用本地计算')
+      calculateLocalStats()
+    }
+  } catch (error) {
+    console.warn('⚠️ 获取统计数据失败，使用本地计算:', error)
+    calculateLocalStats()
+  }
+}
+
+// 更新统计数据
+const updateStatistics = (data) => {
+  const statsData = data.data || data // 兼容不同的数据格式
+  
+  statistics.value[0].value = statsData.availableProjects || 0
+  statistics.value[1].value = statsData.appliedProjects || 0
+  statistics.value[2].value = statsData.completedProjects || 0
+  statistics.value[3].value = statsData.creditsEarned || 0
+  
+  console.log('📊 统计数据已更新:', statistics.value)
+}
+
+// 本地计算统计数据（作为备选方案）
+const calculateLocalStats = () => {
+  // 基于当前项目数据计算统计信息
+  // 注意：如果使用的是 getMyProjects，则数据本身就是用户相关的
+  
+  const availableProjects = allProjects.value.filter(p => p.status === '可报名').length
+  const appliedProjects = allProjects.value.filter(p => 
+    p.status === '已报名' || p.status === '申请中' || p.applied === true
+  ).length
+  const completedProjects = allProjects.value.filter(p => p.status === '已结束' || p.completed === true).length
+  const inProgressProjects = allProjects.value.filter(p => p.status === '进行中').length
+  
+  // 计算学分（假设每个完成的项目获得对应的学分）
+  const creditsEarned = allProjects.value
+    .filter(p => p.status === '已结束' || p.completed === true)
+    .reduce((total, project) => total + (project.credits || 1), 0)
+  
+  // 更新统计显示
+  statistics.value[0].value = availableProjects.toString()
+  statistics.value[1].value = appliedProjects.toString() 
+  statistics.value[2].value = completedProjects.toString()
+  statistics.value[3].value = creditsEarned.toString()
+  
+  console.log('📊 本地统计数据计算完成:', {
+    可报名项目: availableProjects,
+    已报名项目: appliedProjects,
+    已完成项目: completedProjects,
+    进行中项目: inProgressProjects,
+    获得学分: creditsEarned,
+    总项目数: allProjects.value.length
+  })
+}
+
+// 刷新项目数据
+const refreshProjectData = async () => {
+  try {
+    console.log('🔄 正在刷新项目数据...')
+    
+    let response = null
+    let dataSource = ''
+    
+    if (showMyProjects.value) {
+      // 我的项目模式
+      console.log('🎯 获取我的项目列表...')
+      response = await projectApi.getMyProjects()
+      dataSource = 'my-projects'
+      
+      if (response && response.data) {
+        // 更新我的项目数据
+        if (Array.isArray(response.data)) {
+          myProjects.value = response.data
+        } else if (response.data.list && Array.isArray(response.data.list)) {
+          myProjects.value = response.data.list
+        } else if (response.data.projects && Array.isArray(response.data.projects)) {
+          myProjects.value = response.data.projects
+        } else {
+          console.warn('⚠️ 无法识别我的项目数据格式')
+          myProjects.value = []
+        }
+        console.log(`✅ 成功加载 ${myProjects.value.length} 个我的项目`)
+      } else {
+        console.log('📝 暂无我的项目数据')
+        myProjects.value = []
+      }
+    } else {
+      // 全部项目模式
+      console.log('🎯 获取全部项目列表...')
+      response = await projectApi.getProjects()
+      dataSource = 'all-projects'
+      
+      if (response && response.data) {
+        // 更新全部项目数据
+        if (Array.isArray(response.data)) {
+          allProjects.value = response.data
+        } else if (response.data.list && Array.isArray(response.data.list)) {
+          allProjects.value = response.data.list
+        } else if (response.data.projects && Array.isArray(response.data.projects)) {
+          allProjects.value = response.data.projects
+        } else {
+          console.warn('⚠️ 无法识别全部项目数据格式')
+          allProjects.value = Array.isArray(response.data) ? response.data : [response.data].filter(Boolean)
+        }
+        console.log(`✅ 成功加载 ${allProjects.value.length} 个全部项目`)
+      } else {
+        console.log('📝 后端暂无全部项目数据，继续使用本地mock数据')
+      }
+    }
+    
+    if (response && response.data) {
+      console.log(`✅ 项目数据刷新成功 (数据源: ${dataSource})`)
+      console.log('📊 返回的数据结构:', response.data)
+    }
+  } catch (error) {
+    console.warn('⚠️ 刷新项目数据失败，继续使用本地数据:', error)
+    // 即使刷新失败也不影响用户体验，继续使用本地数据
+  }
+}
+
+// 初始化数据
+const initializeData = async () => {
+  await Promise.all([
+    fetchProjectStats(), // 获取统计数据
+    refreshProjectData() // 刷新项目数据
+  ])
+}
+
+// 组件挂载时初始化数据
+onMounted(() => {
+  initializeData()
+})
 </script>
 
 <style lang="scss" scoped>
@@ -656,6 +1540,13 @@ const getStatusType = (status) => {
 .project-training-container {
   .page-header {
     margin-bottom: 24px;
+
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+    }
 
     .page-title {
       font-size: 28px;
@@ -668,6 +1559,18 @@ const getStatusType = (status) => {
       font-size: 14px;
       color: $text-secondary;
       margin: 0;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+      flex-shrink: 0;
+
+      .el-button {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
     }
   }
 
@@ -815,6 +1718,42 @@ const getStatusType = (status) => {
           }
         }
 
+        .project-progress {
+          margin-bottom: 16px;
+          padding: 12px;
+          background-color: #f8f9fa;
+          border-radius: 6px;
+          border: 1px solid #e9ecef;
+
+          .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+
+            .progress-label {
+              font-size: 13px;
+              color: $text-secondary;
+            }
+
+            .progress-text {
+              font-size: 14px;
+              font-weight: 500;
+              color: $primary-color;
+            }
+          }
+
+          .progress-bar {
+            margin-bottom: 8px;
+          }
+
+          .progress-description {
+            font-size: 12px;
+            color: $text-secondary;
+            line-height: 1.4;
+          }
+        }
+
         .project-footer {
           display: flex;
           gap: 8px;
@@ -854,6 +1793,22 @@ const getStatusType = (status) => {
 
 @media (max-width: 768px) {
   .project-training-container {
+    .page-header {
+      .header-content {
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .header-actions {
+        width: 100%;
+        justify-content: center;
+
+        .el-button {
+          flex: 1;
+        }
+      }
+    }
+
     .projects-grid {
       grid-template-columns: 1fr;
     }

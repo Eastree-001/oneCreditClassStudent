@@ -83,6 +83,11 @@ export const userApi = {
     return request.get('/progress/courses')
   },
   
+  // 获取已选择的课程
+  getSelectedCourses() {
+    return request.get('/courses/selected')
+  },
+  
   // 获取学分获取趋势数据
   getCreditsTrend() {
     return request.get('/progress/credits-trend')
@@ -187,5 +192,11 @@ export const userApi = {
   // 获取统计数据 (用户端点)
   getStats() {
     return request.get('/user/stats')
+  },
+  
+  // 获取推荐课程 (需要认证)
+  getRecommendedCourses() {
+    console.log('👤 用户API调用推荐课程: /courses/recommended')
+    return request.get('/courses/recommended')
   }
 }

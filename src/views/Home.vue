@@ -398,7 +398,7 @@ const fetchUserInfo = async () => {
 const fetchRecentCourses = async () => {
   try {
     console.log('📚 获取最近学习的课程...')
-    console.log('请求URL: http://192.168.1.141:8082/api/home/recent-courses')
+    console.log('请求URL: http://192.168.1.165:8082/api/home/recent-courses')
     
     const response = await userApi.getRecentCourses()
     console.log('📝 最近课程响应:', response)
@@ -484,7 +484,7 @@ const fetchRecentCourses = async () => {
 const fetchStats = async () => {
   try {
     console.log('📊 获取首页统计数据...')
-    console.log('请求URL: http://192.168.1.141:8082/api/home/stats')
+    console.log('请求URL: http://192.168.1.165:8082/api/home/stats')
     
     const response = await userApi.getHomeStats()
     console.log('📝 首页统计响应:', response)
@@ -527,7 +527,7 @@ const fetchStats = async () => {
 const fetchStudyChart = async () => {
   try {
     console.log('📈 获取学习图表数据...')
-    console.log('请求URL: http://192.168.1.141:8082/api/home/study-chart')
+    console.log('请求URL: http://192.168.1.165:8082/api/home/study-chart')
     
     const response = await userApi.getStudyChartData()
     console.log('📝 学习图表响应:', response)
@@ -578,7 +578,7 @@ const fetchTodos = async () => {
   try {
     todosLoading.value = true
     console.log('📋 开始获取待办事项列表')
-    console.log('请求URL:', 'http://192.168.1.141:8082/api/home/todos')
+    console.log('请求URL:', 'http://192.168.1.165:8082/api/home/todos')
     
     const response = await userApi.getTodos()
     console.log('📝 获取待办事项响应:', response)
@@ -634,7 +634,7 @@ const fetchTodos = async () => {
 const fetchSkillsData = async () => {
   try {
     console.log('🎯 获取学生技能数据...')
-    console.log('请求URL: http://192.168.1.141:8082/api/home/skills')
+    console.log('请求URL: http://192.168.1.165:8082/api/home/skills')
     
     const response = await userApi.getSkillsData()
     console.log('📝 技能数据响应:', response)
@@ -682,7 +682,7 @@ const fetchSkillsData = async () => {
 const fetchCalendarEvents = async () => {
   try {
     console.log('📅 获取学习日历事件...')
-    console.log('请求URL: http://192.168.1.141:8082/api/home/calendar-events')
+    console.log('请求URL: http://192.168.1.165:8082/api/home/calendar-events')
     
     const response = await userApi.getCalendarEvents()
     console.log('📝 日历事件响应:', response)
@@ -726,7 +726,7 @@ const fetchCalendarEvents = async () => {
 const fetchTodayEvents = async () => {
   try {
     console.log('📅 获取今日事件列表...')
-    console.log('请求URL: http://192.168.1.141:8082/api/home/today-events')
+    console.log('请求URL: http://192.168.1.165:8082/api/home/today-events')
     
     const response = await userApi.getTodayEvents()
     console.log('📝 今日事件响应:', response)
@@ -762,7 +762,7 @@ const fetchTodayEvents = async () => {
 const fetchNotices = async () => {
   try {
     console.log('📢 获取通知公告列表...')
-    console.log('请求URL: http://192.168.1.141:8082/api/home/notices')
+    console.log('请求URL: http://192.168.1.165:8082/api/home/notices')
     
     const response = await userApi.getNotices()
     console.log('📝 通知公告响应:', response)
@@ -1110,7 +1110,7 @@ const addTodo = async () => {
   
   try {
     console.log('➕ 添加待办事项:', newTodoTitle.value)
-    console.log('请求URL:', 'http://192.168.1.141:8082/api/home/todos')
+    console.log('请求URL:', 'http://192.168.1.165:8082/api/home/todos')
     
     const newTodo = {
       title: newTodoTitle.value,
@@ -1186,7 +1186,7 @@ const addTodo = async () => {
 const removeTodo = async (id) => {
   try {
     console.log('🗑️ 删除待办事项，ID:', id)
-    console.log('请求URL:', `http://192.168.1.141:8082/api/home/todos/${id}`)
+    console.log('请求URL:', `http://192.168.1.165:8082/api/home/todos/${id}`)
     
     const response = await userApi.deleteTodo(id)
     console.log('📝 删除待办事项响应:', response)
@@ -1236,7 +1236,7 @@ const removeTodo = async (id) => {
 const handleTodoChange = async (todo) => {
   try {
     console.log('🔄 更新待办事项状态:', todo.id, 'completed:', todo.completed)
-    console.log('请求URL:', `http://192.168.1.141:8082/api/home/todos/${todo.id}`)
+    console.log('请求URL:', `http://192.168.1.165:8082/api/home/todos/${todo.id}`)
     
     const updateData = {
       title: todo.title,

@@ -567,6 +567,12 @@ const courses = ref([
 ])
 
 const filteredCourses = computed(() => {
+  // 调试输出
+  console.log('🔍 filteredCourses计算 - courses.value:', courses.value)
+  console.log('🔍 courses.value类型:', typeof courses.value)
+  console.log('🔍 courses.value是否为数组:', Array.isArray(courses.value))
+  console.log('🔍 courses.value长度:', courses.value?.length)
+  
   let result = courses.value
 
   if (filterForm.value.status) {
@@ -582,6 +588,7 @@ const filteredCourses = computed(() => {
     result = result.filter(c => c.name.toLowerCase().includes(keyword))
   }
 
+  console.log('🔍 filteredCourses结果:', result)
   return result
 })
 
@@ -604,7 +611,7 @@ const handleContinue = (courseId) => {
 const handleViewDetail = async (courseId) => {
   try {
     console.log('🔍 获取课程详情，课程ID:', courseId)
-    console.log('请求URL:', `http://192.168.1.141:8082/api/progress/courses/${courseId}`)
+    console.log('请求URL:', `http://192.168.1.165:8082/api/progress/courses/${courseId}`)
     
     courseDetailLoading.value = true
     currentCourseDetail.value = null
@@ -731,7 +738,7 @@ const handleSubmitAssignment = async () => {
   try {
     submitLoading.value = true
     console.log('📤 提交作业，作业ID:', currentAssignment.value.id)
-    console.log('请求URL:', `http://192.168.1.141:8082/api/progress/assignments/${currentAssignment.value.id}/submit`)
+    console.log('请求URL:', `http://192.168.1.165:8082/api/progress/assignments/${currentAssignment.value.id}/submit`)
     console.log('提交数据:', submitForm.value)
     
     const submitData = {
@@ -1053,7 +1060,7 @@ const handleTabChange = (tab) => {
 const fetchProgressStats = async () => {
   try {
     console.log('📊 获取学习进度统计数据...')
-    console.log('请求URL: http://192.168.1.141:8082/api/progress/stats')
+    console.log('请求URL: http://192.168.1.165:8082/api/progress/stats')
     
     const response = await userApi.getProgressStats()
     console.log('📝 学习进度统计响应:', response)
@@ -1135,14 +1142,60 @@ const fetchProgressStats = async () => {
   }
 }
 
+// 获取默认课程数据
+const getDefaultCoursesData = () => {
+  return [
+    {
+      id: 1,
+      name: 'Vue.js前端开发',
+      enterprise: '李氏企业',
+      semester: '2024春季',
+      credits: 1,
+      status: '进行中',
+      progress: 65,
+      learnedHours: 26,
+      totalHours: 40,
+      completedAssignments: 5,
+      totalAssignments: 8
+    },
+    {
+      id: 2,
+      name: 'Python数据分析',
+      enterprise: '王氏企业',
+      semester: '2024春季',
+      credits: 1,
+      status: '进行中',
+      progress: 80,
+      learnedHours: 32,
+      totalHours: 40,
+      completedAssignments: 6,
+      totalAssignments: 8
+    },
+    {
+      id: 3,
+      name: 'Java后端开发',
+      enterprise: '张氏企业',
+      semester: '2024春季',
+      credits: 1,
+      status: '未开始',
+      progress: 0,
+      learnedHours: 0,
+      totalHours: 40,
+      completedAssignments: 0,
+      totalAssignments: 8
+    }
+  ]
+}
+
 // 获取课程列表
 const fetchProgressCourses = async () => {
   try {
-    console.log('📚 获取课程列表...')
-    console.log('请求URL: http://192.168.1.141:8082/api/progress/courses')
+    console.log('📚 获取已选择课程列表...')
+    console.log('请求URL: http://192.168.1.165:8082/api/courses/selected')
+    console.log('📚 获取前courses.value:', courses.value)
     
-    const response = await userApi.getProgressCourses()
-    console.log('📝 课程列表响应:', response)
+    const response = await userApi.getSelectedCourses()
+    console.log('📝 已选择课程响应:', response)
     
     // 检查响应格式
     if (response && typeof response === 'object' && 'code' in response) {
@@ -1155,81 +1208,79 @@ const fetchProgressCourses = async () => {
       } else {
         console.log('❌ 获取课程列表失败，错误码:', response.code, '错误信息:', response.message)
         // 使用默认课程数据作为fallback
-        courses.value = [
-          {
-            id: 1,
-            name: 'Vue.js前端开发',
-            enterprise: '李氏企业',
-            semester: '2024春季',
-            credits: 1,
-            status: '进行中',
-            progress: 65,
-            learnedHours: 26,
-            totalHours: 40,
-            completedAssignments: 5,
-            totalAssignments: 8
-          },
-          {
-            id: 2,
-            name: 'Python数据分析',
-            enterprise: '王氏企业',
-            semester: '2024春季',
-            credits: 1,
-            status: '进行中',
-            progress: 80,
-            learnedHours: 32,
-            totalHours: 40,
-            completedAssignments: 6,
-            totalAssignments: 8
-          }
-        ]
+        courses.value = getDefaultCoursesData()
       }
     } else {
       // 非标准格式，直接使用响应数据
       console.log('📄 课程列表非标准格式响应，直接使用数据')
-      courses.value = Array.isArray(response) ? response : []
+      courses.value = Array.isArray(response) ? response : getDefaultCoursesData()
     }
   } catch (error) {
     console.error('获取课程列表失败:', error)
     console.error('错误详情:', error.response?.data)
     
-    // 如果API失败，使用默认课程数据作为fallback
-    courses.value = [
-      {
-        id: 1,
-        name: 'Vue.js前端开发',
-        enterprise: '李氏企业',
-        semester: '2024春季',
-        credits: 1,
-        status: '进行中',
-        progress: 65,
-        learnedHours: 26,
-        totalHours: 40,
-        completedAssignments: 5,
-        totalAssignments: 8
-      },
-      {
-        id: 2,
-        name: 'Python数据分析',
-        enterprise: '王氏企业',
-        semester: '2024春季',
-        credits: 1,
-        status: '进行中',
-        progress: 80,
-        learnedHours: 32,
-        totalHours: 40,
-        completedAssignments: 6,
-        totalAssignments: 8
+    // 尝试从选课API获取数据作为备用方案
+    try {
+      console.log('🔄 尝试从选课API获取数据...')
+      const { courseApi } = await import('@/api')
+      const coursesResponse = await courseApi.getCourses()
+      console.log('📝 选课API响应:', coursesResponse)
+      
+      if (coursesResponse && typeof coursesResponse === 'object') {
+        let allCourses = []
+        if ('code' in coursesResponse) {
+          const successCodes = [200, 0, 201, 204]
+          if (successCodes.includes(coursesResponse.code)) {
+            allCourses = coursesResponse.data || coursesResponse || []
+          }
+        } else {
+          allCourses = coursesResponse || []
+        }
+        
+        // 只显示已选的课程（假设有selected标志）
+        const selectedCourses = allCourses.filter(course => course.isSelected === true || course.selected === true)
+        console.log('🎯 已选课程数量:', selectedCourses.length)
+        
+        if (selectedCourses.length > 0) {
+          courses.value = selectedCourses.map(course => ({
+            id: course.id,
+            name: course.name,
+            enterprise: course.enterprise || course.company || '未知企业',
+            semester: course.semester || '2024春季',
+            credits: course.credits || 1,
+            status: '进行中',
+            progress: 0,
+            learnedHours: 0,
+            totalHours: course.hours || 40,
+            completedAssignments: 0,
+            totalAssignments: course.assignments || 8
+          }))
+          console.log('✅ 从选课API获取到已选课程:', courses.value.length)
+        } else {
+          // 如果没有已选课程，使用默认数据
+          courses.value = getDefaultCoursesData()
+          console.log('⚠️ 没有已选课程，使用默认数据')
+        }
+      } else {
+        courses.value = getDefaultCoursesData()
+        console.log('⚠️ 选课API响应格式异常，使用默认数据')
       }
-    ]
+    } catch (courseApiError) {
+      console.error('选课API也失败了:', courseApiError.message)
+      courses.value = getDefaultCoursesData()
+      console.log('⚠️ 所有API都失败，使用默认数据')
+    }
   }
+  
+  console.log('📚 获取后courses.value:', courses.value)
+  console.log('📚 courses.value长度:', courses.value?.length)
 }
 
 // 获取学分获取趋势数据
 const fetchCreditsTrend = async () => {
   try {
     console.log('📈 获取学分获取趋势数据...')
-    console.log('请求URL: http://192.168.1.141:8082/api/progress/credits-trend')
+    console.log('请求URL: http://192.168.1.165:8082/api/progress/credits-trend')
     
     const response = await userApi.getCreditsTrend()
     console.log('📝 学分趋势响应:', response)
@@ -1278,7 +1329,7 @@ const fetchCreditsTrend = async () => {
 const fetchTimeDistribution = async () => {
   try {
     console.log('⏰ 获取学习时长分布数据...')
-    console.log('请求URL: http://192.168.1.141:8082/api/progress/time-distribution')
+    console.log('请求URL: http://192.168.1.165:8082/api/progress/time-distribution')
     
     const response = await userApi.getTimeDistribution()
     console.log('📝 学习时长分布响应:', response)
@@ -1330,7 +1381,7 @@ const fetchTimeDistribution = async () => {
 const fetchAssignments = async () => {
   try {
     console.log('📋 获取作业列表数据...')
-    console.log('请求URL: http://192.168.1.141:8082/api/progress/assignments')
+    console.log('请求URL: http://192.168.1.165:8082/api/progress/assignments')
     
     const response = await userApi.getAssignments()
     console.log('📝 作业列表响应:', response)
@@ -1446,7 +1497,7 @@ const fetchAssignments = async () => {
 const fetchExams = async () => {
   try {
     console.log('📝 获取考试列表数据...')
-    console.log('请求URL: http://192.168.1.141:8082/api/progress/exams')
+    console.log('请求URL: http://192.168.1.165:8082/api/progress/exams')
     
     const response = await userApi.getExams()
     console.log('📝 考试列表响应:', response)

@@ -334,17 +334,10 @@ const handleLogin = async () => {
           throw new Error('登录响应无效，请重试')
         }
         
-        // 保存token和refreshToken
-        if (data.token) {
-          localStorage.setItem('token', data.token)
-          console.log('Token已保存:', data.token)
-        }
-        
-        // 如果响应中有refreshToken，也保存它
-        if (data.refreshToken) {
-          localStorage.setItem('refreshToken', data.refreshToken)
-          console.log('RefreshToken已保存:', data.refreshToken)
-        }
+        // 使用token管理器保存token
+        const { tokenManager } = await import('@/utils/tokenManager')
+        tokenManager.setToken(data.token, data.refreshToken)
+        console.log('🔑 用户专属token已通过tokenManager保存')
         
         // 从auth/me端点获取完整的用户信息
         let userInfo = null
@@ -363,6 +356,22 @@ const handleLogin = async () => {
           }
           
           console.log('👤 处理后的用户信息:', userInfo)
+        
+        // 在开发环境中测试认证流程
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🧪 开发环境：测试认证流程...')
+          try {
+            const { authTest } = await import('@/utils/testAuth')
+            const testResult = await authTest.testAuthFlow({
+              username: loginForm.username,
+              password: loginForm.password
+            })
+            console.log('🧪 认证流程测试结果:', testResult)
+          } catch (testError) {
+            console.warn('🧪 认证流程测试失败:', testError.message)
+          }
+        }
+        
         } catch (error) {
           console.error('❌ 获取用户信息失败:', error)
           console.log('🔄 使用fallback用户信息')
@@ -408,6 +417,26 @@ const handleLogin = async () => {
         
         // 确保token设置后立即验证可以调用推荐课程API
         console.log('✅ 登录成功，token已保存，可以调用需要认证的API')
+        
+        // 使用tokenManager验证推荐课程API是否可用
+        try {
+          console.log('🧪 使用tokenManager测试推荐课程API可用性...')
+          const { tokenManager } = await import('@/utils/tokenManager')
+          
+          // 验证token有效性
+          const isTokenValid = await tokenManager.validateToken()
+          console.log('🔍 Token验证结果:', isTokenValid ? '有效' : '无效')
+          
+          if (isTokenValid) {
+            // 测试推荐课程API
+            const testResponse = await userApi.getRecommendedCourses()
+            console.log('✅ 推荐课程API验证成功，用户专属token工作正常:', testResponse)
+          } else {
+            console.warn('⚠️ Token验证失败，推荐课程API可能不可用')
+          }
+        } catch (apiError) {
+          console.warn('⚠️ 推荐课程API验证失败，但登录仍有效:', apiError.message)
+        }
         
         ElMessage.success('登录成功')
         // 跳转到首页
@@ -465,7 +494,7 @@ const handleRegister = async () => {
         
         // 打印调试信息
         console.log('注册数据:', registerData)
-        console.log('请求URL:', 'http://192.168.1.141:8082/api/auth/register')
+        console.log('请求URL:', 'http://192.168.1.165:8082/api/auth/register')
         
         // 发送完整注册信息到指定API
         const response = await userApi.register(registerData)
@@ -581,7 +610,7 @@ const handleForgotPassword = async () => {
     if (!email) return
 
     console.log('准备发送忘记密码请求:', { email })
-    console.log('请求URL:', 'http://192.168.1.141:8082/api/auth/forgot-password')
+    console.log('请求URL:', 'http://192.168.1.165:8082/api/auth/forgot-password')
 
     // 发送忘记密码请求
     const response = await userApi.forgotPassword({ email })
