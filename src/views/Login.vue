@@ -494,7 +494,7 @@ const handleRegister = async () => {
         
         // 打印调试信息
         console.log('注册数据:', registerData)
-        console.log('请求URL:', 'http://192.168.1.165:8082/api/auth/register')
+        console.log('请求URL:', 'http://192.168.1.134:8082/api/auth/register')
         
         // 发送完整注册信息到指定API
         const response = await userApi.register(registerData)
@@ -610,7 +610,7 @@ const handleForgotPassword = async () => {
     if (!email) return
 
     console.log('准备发送忘记密码请求:', { email })
-    console.log('请求URL:', 'http://192.168.1.165:8082/api/auth/forgot-password')
+    console.log('请求URL:', 'http://192.168.1.134:8082/api/auth/forgot-password')
 
     // 发送忘记密码请求
     const response = await userApi.forgotPassword({ email })
