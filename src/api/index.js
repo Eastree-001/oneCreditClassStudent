@@ -2,3 +2,4 @@
 export { userApi } from './user.js'
 export { courseApi } from './course.js'
 export { projectApi } from './project.js'
+export { postgraduateApi } from './postgraduate.js'

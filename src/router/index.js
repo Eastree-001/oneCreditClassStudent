@@ -43,6 +43,61 @@ const routes = [
         name: 'ProjectTraining',
         component: () => import('@/views/ProjectTraining.vue'),
         meta: { title: '项目实训', icon: 'Briefcase' }
+      },
+      {
+        path: 'postgraduate',
+        component: () => import('@/views/Postgraduate/Layout.vue'),
+        meta: { title: '考研专区', icon: 'Reading' },
+        children: [
+          {
+            path: '',
+            name: 'PostgraduateIndex',
+            component: () => import('@/views/Postgraduate/Index.vue'),
+            meta: { title: '考研首页' }
+          },
+          {
+            path: 'subject-optimization',
+            name: 'SubjectOptimization',
+            component: () => import('@/views/Postgraduate/SubjectOptimization.vue'),
+            meta: { title: '科目优化' }
+          },
+          {
+            path: 'question-bank',
+            name: 'QuestionBank',
+            component: () => import('@/views/Postgraduate/QuestionBank.vue'),
+            meta: { title: '题库练习' }
+          },
+          {
+            path: 'growth-path',
+            name: 'GrowthPath',
+            component: () => import('@/views/Postgraduate/GrowthPath.vue'),
+            meta: { title: '成长路线' }
+          },
+          {
+            path: 'recommendation-advice',
+            name: 'RecommendationAdvice',
+            component: () => import('@/views/Postgraduate/RecommendationAdvice.vue'),
+            meta: { title: '保研建议' }
+          },
+          {
+            path: 'ai-teacher',
+            name: 'AITeacher',
+            component: () => import('@/views/Postgraduate/AITeacher.vue'),
+            meta: { title: 'AI教师' }
+          },
+          {
+            path: 'teacher-application',
+            name: 'TeacherApplication',
+            component: () => import('@/views/Postgraduate/TeacherApplication.vue'),
+            meta: { title: '教师入驻' }
+          },
+          {
+            path: 'smart-supervision',
+            name: 'SmartSupervision',
+            component: () => import('@/views/Postgraduate/SmartSupervision.vue'),
+            meta: { title: '智能督学' }
+          }
+        ]
       }
     ]
   }
