@@ -1,6 +1,6 @@
 // API配置文件
 export const API_CONFIG = {
-  BASE_URL: 'http://192.168.1.134:8082/api',
+  BASE_URL: 'http://192.168.1.181:8082/api',
   ENDPOINTS: {
     // 认证相关
     LOGIN: '/auth/login',
