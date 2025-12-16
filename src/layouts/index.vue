@@ -58,7 +58,7 @@
           <el-menu-item
             v-for="route in menuRoutes"
             :key="route.path"
-            :index="route.path"
+            :index="getMenuPath(route)"
           >
             <el-icon>
               <component :is="route.meta.icon" />
@@ -146,10 +146,30 @@ const initUserInfo = () => {
 initUserInfo()
 
 const menuRoutes = computed(() => {
-  return route.matched[0]?.children || []
+  const children = route.matched[0]?.children || []
+  // 过滤掉没有meta.title的路由，但保留有children的路由（如考研专区）
+  return children.filter(child => child.meta?.title)
 })
 
+const getMenuPath = (route) => {
+  // 如果路由有children，返回其路径，否则返回完整路径
+  if (route.children && route.children.length > 0) {
+    // 对于有children的路由，返回第一个子路由的路径，或者路由本身的路径
+    const firstChild = route.children.find(child => child.path === '' || child.path === 'index')
+    if (firstChild) {
+      return `/${route.path}${firstChild.path ? '/' + firstChild.path : ''}`
+    }
+    return `/${route.path}`
+  }
+  // 确保路径以 / 开头
+  return route.path.startsWith('/') ? route.path : `/${route.path}`
+}
+
 const activeMenu = computed(() => {
+  // 对于嵌套路由，需要返回完整的路径
+  if (route.path.startsWith('/postgraduate')) {
+    return '/postgraduate'
+  }
   return route.path
 })
 
