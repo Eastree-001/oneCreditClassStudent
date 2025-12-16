@@ -57,11 +57,7 @@ export const projectApi = {
     return request.post(`/projects/${projectId}/evaluate`, data)
   },
   
-  // 取消项目申请
-  cancelProjectApplication(projectId) {
-    console.log(`❌ 取消项目实训申请: /projects/${projectId}/apply`)
-    return request.delete(`/projects/${projectId}/apply`)
-  },
+
 
   // 项目申请接口 (/api/projects/{projectId}/application)
   application(projectId, data) {
@@ -74,5 +70,18 @@ export const projectApi = {
   getMyProjects() {
     console.log('📋 获取我的项目实训列表')
     return request.get('/projects/my-projects')
+  },
+  
+  // 取消项目报名（通过申请ID）
+  cancelApplication(projectId, applicationId) {
+    console.log(`❌ 取消项目报名: /projects/${projectId}/applications/${applicationId}`)
+    console.log(`📋 项目ID: ${projectId}, 申请ID: ${applicationId}`)
+    return request.delete(`/projects/${projectId}/applications/${applicationId}`)
+  },
+
+  // 兼容性方法：通过项目ID取消报名（如果后端支持）
+  cancelApplicationByProject(projectId) {
+    console.log(`❌ 通过项目ID取消报名: /projects/${projectId}/apply`)
+    return request.delete(`/projects/${projectId}/apply`)
   }
 }

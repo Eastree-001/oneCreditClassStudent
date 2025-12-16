@@ -455,6 +455,7 @@ import {
 } from '@element-plus/icons-vue'
 import { themeColors, courseCardColors } from '@/styles/variables.js'
 import { courseApi } from '@/api'
+import { BASE_URL } from '@/config/api.js'
 import { createTeacherDataDiagnostic } from '@/utils/teacherDataFix.js'
 import { enrichRecommendedCoursesWithTeacherData } from '@/utils/teacherDataBackend.js'
 
@@ -792,7 +793,7 @@ const handleConfirmSelection = async () => {
     const courseIds = selectedCourses.value.map(course => course.id)
     
     console.log('📚 确认选课，课程IDs:', courseIds)
-    console.log('请求URL:', 'http://192.168.1.134:8082/api/courses/confirm-selection')
+    console.log('请求URL:', `${BASE_URL}/api/courses/confirm-selection`)
     console.log('提交数据:', { courseIds })
     
     const response = await courseApi.confirmSelection(courseIds)
@@ -1028,7 +1029,7 @@ const refreshRecommendations = async () => {
   recommendationsLoading.value = true
   try {
     console.log('🌟 获取推荐课程...')
-    console.log('请求URL: http://192.168.1.134:8082/api/courses/recommended')
+    console.log('请求URL:', `${BASE_URL}/api/courses/recommended`)
     
     // 使用tokenManager检查token状态
     const { tokenManager } = await import('@/utils/tokenManager')

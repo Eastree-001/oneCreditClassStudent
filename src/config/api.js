@@ -1,6 +1,15 @@
 // API配置文件
+
+// API服务器IP地址常量 - 便于统一管理
+export const API_IP = '192.168.1.150'
+export const API_PORT = '8082'
+export const API_BASE_PATH = '/api'
+
+// 完整的基础URL
+export const BASE_URL = `http://${API_IP}:${API_PORT}${API_BASE_PATH}`
+
 export const API_CONFIG = {
-  BASE_URL: 'http://192.168.1.181:8082/api',
+  BASE_URL: BASE_URL,
   ENDPOINTS: {
     // 认证相关
     LOGIN: '/auth/login',
@@ -27,6 +36,15 @@ export const API_CONFIG = {
     ASSIGNMENTS: '/assignments',
     SUBMIT_ASSIGNMENT: (id) => `/assignments/${id}/submit`,
     
+    // 学习进度相关
+    PROGRESS_ASSIGNMENTS: '/progress/assignments',
+    PROGRESS_SUBMIT_ASSIGNMENT: (id) => `/progress/assignments/${id}/submit`,
+    PROGRESS_EXAMS: '/progress/exams',
+    PROGRESS_COURSES: '/progress/courses',
+    PROGRESS_STATS: '/progress/stats',
+    PROGRESS_CREDITS_TREND: '/progress/credits-trend',
+    PROGRESS_TIME_DISTRIBUTION: '/progress/time-distribution',
+    
     // 待办事项
     TODOS: '/todos',
     TODO_DETAIL: (id) => `/todos/${id}`,
@@ -41,6 +59,7 @@ export const API_CONFIG = {
     PROJECT_PROGRESS: (id) => `/projects/${id}/progress`,
     PROJECT_REPORTS: (id) => `/projects/${id}/reports`,
     PROJECT_EVALUATE: (id) => `/projects/${id}/evaluate`,
+    PROJECT_CANCEL_APPLICATION: (projectId, applicationId) => `/projects/${projectId}/applications/${applicationId}`,
     MY_PROJECTS: '/projects/my-projects'
   }
 }

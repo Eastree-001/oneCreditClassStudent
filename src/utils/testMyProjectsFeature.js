@@ -159,8 +159,8 @@ myProjects.forEach(project => {
     primaryAction = { text: '查看详情', type: 'default', action: 'view' }
     secondaryAction = { text: '查看进度', type: 'info', action: 'progress' }
   } else if (project.applied === true || project.status === '已报名' || project.status === '申请中') {
-    primaryAction = { text: '取消报名', type: 'warning', action: 'cancel' }
-    secondaryAction = { text: '查看详情', type: 'default', action: 'view' }
+    primaryAction = { text: '查看详情', type: 'default', action: 'view' }
+    secondaryAction = { text: '查看进度', type: 'info', action: 'progress' }
   } else {
     // 可报名状态
     primaryAction = { text: '立即报名', type: 'primary', action: 'apply' }

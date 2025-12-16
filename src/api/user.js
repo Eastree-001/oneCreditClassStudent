@@ -68,6 +68,11 @@ export const userApi = {
     return request.put(`/home/todos/${id}`, requestData)
   },
   
+  // 获取待办事项详情
+  getTodoDetail(id) {
+    return request.get(`/home/todos`)
+  },
+  
   // 删除待办事项
   deleteTodo(id) {
     return request.delete(`/home/todos/${id}`)
@@ -144,8 +149,17 @@ export const userApi = {
   },
   
   // 获取学习日历事件
-  getCalendarEvents() {
-    return request.get('/home/calendar-events')
+  getCalendarEvents(params = {}) {
+    const queryParams = new URLSearchParams()
+    if (params.year) queryParams.append('year', params.year)
+    if (params.month) queryParams.append('month', params.month)
+    
+    const url = queryParams.toString() 
+      ? `/home/calendar-events?${queryParams.toString()}`
+      : '/home/calendar-events'
+    
+    console.log('📅 获取日历事件请求URL:', url)
+    return request.get(url)
   },
   
   // 获取今日事件列表

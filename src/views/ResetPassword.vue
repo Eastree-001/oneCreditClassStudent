@@ -108,6 +108,7 @@ import {
   Key
 } from '@element-plus/icons-vue'
 import { userApi } from '@/api/user.js'
+import { BASE_URL } from '@/config/api.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -174,7 +175,7 @@ const handleResetPassword = async () => {
         }
         
         console.log('重置密码数据:', resetData)
-        console.log('请求URL:', 'http://192.168.1.134:8082/api/auth/reset-password')
+        console.log('请求URL:', `${BASE_URL}/auth/reset-password`)
         
         // 发送重置密码请求
         const response = await userApi.resetPassword(resetData)

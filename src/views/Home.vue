@@ -146,16 +146,23 @@
           </template>
           <el-calendar v-model="calendarDate">
             <template #date-cell="{ data }">
-              <div class="calendar-cell">
+              <div 
+                class="calendar-cell"
+                :class="{ 'has-event': hasEvent(data.day) }"
+                @click="handleCalendarDateClick(data.day)"
+              >
                 <div class="date-number">{{ data.day.split('-').slice(2).join('-') }}</div>
                 <div v-if="hasEvent(data.day)" class="event-dot"></div>
               </div>
             </template>
           </el-calendar>
           <div class="calendar-events">
-            <div v-for="event in todayEventsList" :key="event.id" class="event-item">
-              <el-tag :type="event.type" size="small">{{ event.type === 'warning' ? '作业' : '考试' }}</el-tag>
+            <div v-for="event in currentMonthEvents" :key="event.id" class="event-item">
+              <el-tag :type="getEventType(event.type)" size="small">{{ getEventTypeText(event.type) }}</el-tag>
               <span class="event-title">{{ event.title }}</span>
+            </div>
+            <div v-if="currentMonthEvents.length === 0" class="no-events">
+              <span style="color: #999; font-size: 13px;">本月暂无事件</span>
             </div>
           </div>
         </el-card>
@@ -177,21 +184,19 @@
               v-for="todo in todoList.slice(0, 5)"
               :key="todo.id"
               class="todo-item"
-              :class="{ completed: todo.completed }"
+              @click="handleTodoClick(todo)"
             >
-              <el-checkbox v-model="todo.completed" @change="handleTodoChange(todo)">
-                <div class="todo-content">
-                  <span class="todo-text">{{ todo.title }}</span>
-                  <div class="todo-meta">
-                    <el-tag v-if="todo.priority" :type="getPriorityType(todo.priority)" size="small" style="margin-right: 8px">
-                      {{ getPriorityText(todo.priority) }}
-                    </el-tag>
-                    <el-tag v-if="todo.deadline" :type="getDeadlineType(todo.deadline)" size="small">
-                      {{ formatDeadline(todo.deadline) }}
-                    </el-tag>
-                  </div>
+              <div class="todo-content">
+                <span class="todo-text">{{ todo.title }}</span>
+                <div class="todo-meta">
+                  <el-tag v-if="todo.priority" :type="getPriorityType(todo.priority)" size="small" style="margin-right: 8px">
+                    {{ getPriorityText(todo.priority) }}
+                  </el-tag>
+                  <el-tag v-if="todo.deadline" :type="getDeadlineType(todo.deadline)" size="small">
+                    {{ formatDeadline(todo.deadline) }}
+                  </el-tag>
                 </div>
-              </el-checkbox>
+              </div>
             </div>
               <el-empty v-if="todoList.length === 0" description="暂无待办事项" :image-size="80" />
             </template>
@@ -270,9 +275,8 @@
               v-for="todo in todoList"
               :key="todo.id"
               class="todo-item-full"
-              :class="{ completed: todo.completed }"
+              @click="handleTodoClick(todo)"
             >
-            <el-checkbox v-model="todo.completed">
               <div class="todo-content">
                 <div class="todo-main">
                   <span class="todo-text">{{ todo.title }}</span>
@@ -287,26 +291,26 @@
                   </el-tag>
                 </div>
               </div>
-            </el-checkbox>
-            <el-date-picker
-              v-model="todo.deadline"
-              type="date"
-              placeholder="设置截止日期"
-              format="YYYY-MM-DD"
-              value-format="YYYY-MM-DD"
-              size="small"
-              style="width: 150px; margin-left: 10px"
-            />
-            <el-button
-              type="danger"
-              text
-              size="small"
-              @click="removeTodo(todo.id)"
-              style="margin-left: 10px"
-            >
-              删除
-            </el-button>
-          </div>
+              <el-date-picker
+                v-model="todo.deadline"
+                type="date"
+                placeholder="设置截止日期"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+                size="small"
+                style="width: 150px; margin-left: 10px"
+                @click.stop
+              />
+              <el-button
+                type="danger"
+                text
+                size="small"
+                @click.stop="removeTodo(todo.id)"
+                style="margin-left: 10px"
+              >
+                删除
+              </el-button>
+            </div>
         </template>
         </div>
       </div>
@@ -318,7 +322,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Lightning,
@@ -329,9 +333,10 @@ import {
   DataAnalysis,
   Briefcase
 } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { themeColors } from '@/styles/variables.js'
 import { userApi, courseApi } from '@/api'
+import { BASE_URL } from '@/config/api.js'
 
 const router = useRouter()
 
@@ -398,7 +403,7 @@ const fetchUserInfo = async () => {
 const fetchRecentCourses = async () => {
   try {
     console.log('📚 获取最近学习的课程...')
-    console.log('请求URL: http://192.168.1.134:8082/api/home/recent-courses')
+    console.log('请求URL:', `${BASE_URL}/api/home/recent-courses`)
     
     const response = await userApi.getRecentCourses()
     console.log('📝 最近课程响应:', response)
@@ -484,7 +489,7 @@ const fetchRecentCourses = async () => {
 const fetchStats = async () => {
   try {
     console.log('📊 获取首页统计数据...')
-    console.log('请求URL: http://192.168.1.134:8082/api/home/stats')
+    console.log('请求URL:', `${BASE_URL}/api/home/stats`)
     
     const response = await userApi.getHomeStats()
     console.log('📝 首页统计响应:', response)
@@ -527,7 +532,7 @@ const fetchStats = async () => {
 const fetchStudyChart = async () => {
   try {
     console.log('📈 获取学习图表数据...')
-    console.log('请求URL: http://192.168.1.134:8082/api/home/study-chart')
+    console.log('请求URL:', `${BASE_URL}/api/home/study-chart`)
     
     const response = await userApi.getStudyChartData()
     console.log('📝 学习图表响应:', response)
@@ -578,7 +583,7 @@ const fetchTodos = async () => {
   try {
     todosLoading.value = true
     console.log('📋 开始获取待办事项列表')
-    console.log('请求URL:', 'http://192.168.1.134:8082/api/home/todos')
+    console.log('请求URL:', `${BASE_URL}/api/home/todos`)
     
     const response = await userApi.getTodos()
     console.log('📝 获取待办事项响应:', response)
@@ -634,7 +639,7 @@ const fetchTodos = async () => {
 const fetchSkillsData = async () => {
   try {
     console.log('🎯 获取学生技能数据...')
-    console.log('请求URL: http://192.168.1.134:8082/api/home/skills')
+    console.log('请求URL:', `${BASE_URL}/api/home/skills`)
     
     const response = await userApi.getSkillsData()
     console.log('📝 技能数据响应:', response)
@@ -682,9 +687,15 @@ const fetchSkillsData = async () => {
 const fetchCalendarEvents = async () => {
   try {
     console.log('📅 获取学习日历事件...')
-    console.log('请求URL: http://192.168.1.134:8082/api/home/calendar-events')
     
-    const response = await userApi.getCalendarEvents()
+    // 获取当前日历显示的年月
+    const currentDate = new Date(calendarDate.value)
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth() + 1 // JavaScript月份从0开始，需要+1
+    
+    console.log('📅 当前日历年月:', year, month)
+    
+    const response = await userApi.getCalendarEvents({ year, month })
     console.log('📝 日历事件响应:', response)
     
     // 检查响应格式
@@ -699,9 +710,9 @@ const fetchCalendarEvents = async () => {
         console.log('❌ 获取日历事件失败，错误码:', response.code, '错误信息:', response.message)
         // 使用默认日历事件作为fallback
         calendarEvents.value = [
-          { date: '2024-01-20', title: 'Vue.js作业截止', type: 'warning' },
-          { date: '2024-01-22', title: '数据结构复习', type: 'info' },
-          { date: '2024-01-25', title: 'Python数据分析考试', type: 'danger' }
+          { id: 1, date: '2024-01-20', title: 'Vue.js作业截止', type: 'homework', course_id: null, description: '完成第3章作业' },
+          { id: 2, date: '2024-01-22', title: '数据结构复习', type: 'homework', course_id: 1, description: '复习链表和栈' },
+          { id: 3, date: '2024-01-25', title: 'Python数据分析考试', type: 'exam', course_id: 2, description: '期末考试' }
         ]
       }
     } else {
@@ -715,9 +726,9 @@ const fetchCalendarEvents = async () => {
     
     // 如果API失败，使用默认日历事件作为fallback
     calendarEvents.value = [
-      { date: '2024-01-20', title: 'Vue.js作业截止', type: 'warning' },
-      { date: '2024-01-22', title: '数据结构复习', type: 'info' },
-      { date: '2024-01-25', title: 'Python数据分析考试', type: 'danger' }
+      { id: 1, date: '2024-01-20', title: 'Vue.js作业截止', type: 'homework', course_id: null, description: '完成第3章作业' },
+      { id: 2, date: '2024-01-22', title: '数据结构复习', type: 'homework', course_id: 1, description: '复习链表和栈' },
+      { id: 3, date: '2024-01-25', title: 'Python数据分析考试', type: 'exam', course_id: 2, description: '期末考试' }
     ]
   }
 }
@@ -726,7 +737,7 @@ const fetchCalendarEvents = async () => {
 const fetchTodayEvents = async () => {
   try {
     console.log('📅 获取今日事件列表...')
-    console.log('请求URL: http://192.168.1.134:8082/api/home/today-events')
+    console.log('请求URL:', `${BASE_URL}/api/home/today-events`)
     
     const response = await userApi.getTodayEvents()
     console.log('📝 今日事件响应:', response)
@@ -762,7 +773,7 @@ const fetchTodayEvents = async () => {
 const fetchNotices = async () => {
   try {
     console.log('📢 获取通知公告列表...')
-    console.log('请求URL: http://192.168.1.134:8082/api/home/notices')
+    console.log('请求URL:', `${BASE_URL}/api/home/notices`)
     
     const response = await userApi.getNotices()
     console.log('📝 通知公告响应:', response)
@@ -835,6 +846,25 @@ const fetchNotices = async () => {
 // 判断是否有完成的课程
 const hasCompletedCourse = computed(() => {
   return recentCourses.value.some(course => course.status === '已完成')
+})
+
+// 获取当前月份的事件列表（按日期排序）
+const currentMonthEvents = computed(() => {
+  if (!calendarEvents.value.length) return []
+  
+  // 获取当前日历显示的年月
+  const currentDate = new Date(calendarDate.value)
+  const currentYear = currentDate.getFullYear()
+  const currentMonth = currentDate.getMonth() + 1
+  
+  // 过滤当前月份的事件
+  return calendarEvents.value
+    .filter(event => {
+      const eventDate = new Date(event.date)
+      return eventDate.getFullYear() === currentYear && 
+             eventDate.getMonth() + 1 === currentMonth
+    })
+    .sort((a, b) => new Date(a.date) - new Date(b.date)) // 按日期排序
 })
 
 const chartTimeRange = ref('week')
@@ -1102,6 +1132,67 @@ const hasEvent = (date) => {
   return calendarEvents.value.some(event => event.date === date)
 }
 
+// 获取事件类型对应的Element Plus标签类型
+const getEventType = (type) => {
+  switch (type) {
+    case 'homework': return 'warning'
+    case 'exam': return 'danger'
+    default: return 'info'
+  }
+}
+
+// 获取事件类型显示文本
+const getEventTypeText = (type) => {
+  switch (type) {
+    case 'homework': return '作业'
+    case 'exam': return '考试'
+    default: return '其他'
+  }
+}
+
+// 处理日历日期点击事件
+const handleCalendarDateClick = (date) => {
+  console.log('📅 点击日历日期:', date)
+  
+  // 获取该日期的所有事件
+  const dayEvents = calendarEvents.value.filter(event => event.date === date)
+  
+  if (dayEvents.length === 0) {
+    ElMessage.info('该日期暂无事件')
+    return
+  }
+  
+  console.log('📋 该日期的事件:', dayEvents)
+  
+  // 构建事件详情HTML
+  const eventsHtml = dayEvents.map(event => `
+    <div style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
+      <div style="display: flex; align-items: center; margin-bottom: 8px;">
+        <span style="background: ${event.type === 'homework' ? '#f39c12' : '#e74c3c'}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-right: 8px;">
+          ${getEventTypeText(event.type)}
+        </span>
+        <strong>${event.title}</strong>
+      </div>
+      ${event.description ? `<p style="margin: 8px 0; color: #666; font-size: 14px;">${event.description}</p>` : ''}
+      ${event.course_id ? `<p style="margin: 4px 0; color: #999; font-size: 13px;">课程ID: ${event.course_id}</p>` : ''}
+    </div>
+  `).join('')
+  
+  // 使用 MessageBox 显示该日期的所有事件
+  ElMessageBox.alert(
+    `<div style="text-align: left;">
+      <h3 style="margin-bottom: 15px;">${date} 的事件</h3>
+      ${eventsHtml}
+    </div>`,
+    '日历事件详情',
+    {
+      confirmButtonText: '确定',
+      dangerouslyUseHTMLString: true,
+      type: 'info'
+    }
+  )
+}
+
 
 
 // 待办事项相关方法
@@ -1110,7 +1201,7 @@ const addTodo = async () => {
   
   try {
     console.log('➕ 添加待办事项:', newTodoTitle.value)
-    console.log('请求URL:', 'http://192.168.1.134:8082/api/home/todos')
+    console.log('请求URL:', `${BASE_URL}/api/home/todos`)
     
     const newTodo = {
       title: newTodoTitle.value,
@@ -1186,7 +1277,7 @@ const addTodo = async () => {
 const removeTodo = async (id) => {
   try {
     console.log('🗑️ 删除待办事项，ID:', id)
-    console.log('请求URL:', `http://192.168.1.134:8082/api/home/todos/${id}`)
+    console.log('请求URL:', `${BASE_URL}/api/home/todos/${id}`)
     
     const response = await userApi.deleteTodo(id)
     console.log('📝 删除待办事项响应:', response)
@@ -1233,10 +1324,105 @@ const removeTodo = async (id) => {
   }
 }
 
+const handleTodoClick = async (todo) => {
+  try {
+    console.log('🔍 获取待办事项详情:', todo.id)
+    console.log('请求URL:', `${BASE_URL}/api/home/todos`)
+    
+    const response = await userApi.getTodoDetail(todo.id)
+    console.log('📝 获取待办事项详情响应:', response)
+    
+    // 检查响应格式
+    if (response && typeof response === 'object' && 'code' in response) {
+      console.log('🏷️ 获取待办事项详情标准格式响应，code:', response.code, 'message:', response.message)
+      
+      const successCodes = [200, 0, 201, 204]
+      if (successCodes.includes(response.code)) {
+        console.log('✅ 获取待办事项详情成功，响应码:', response.code)
+        
+        // 从返回的数组中找到对应ID的待办事项
+        let todoDetail = null
+        if (Array.isArray(response.data)) {
+          todoDetail = response.data.find(item => item.id === todo.id)
+        } else if (response.data && typeof response.data === 'object') {
+          todoDetail = response.data
+        }
+        
+        if (!todoDetail) {
+          ElMessage.error('未找到对应的待办事项')
+          return
+        }
+        
+        console.log('📋 找到的待办事项详情:', todoDetail)
+        
+        // 使用 Element Plus 的 MessageBox 显示详情
+        ElMessageBox.alert(
+          `<div style="text-align: left;">
+            <h3>${todoDetail.title}</h3>
+            ${todoDetail.description ? `<p style="margin: 10px 0;">${todoDetail.description}</p>` : ''}
+            ${todoDetail.deadline ? `<p><strong>截止日期:</strong> ${todoDetail.deadline}</p>` : ''}
+            ${todoDetail.priority !== undefined && todoDetail.priority !== null ? `<p><strong>优先级:</strong> ${getPriorityText(todoDetail.priority)}</p>` : ''}
+            <p><strong>状态:</strong> ${todoDetail.completed ? '已完成' : '未完成'}</p>
+          </div>`,
+          '待办事项详情',
+          {
+            confirmButtonText: '确定',
+            dangerouslyUseHTMLString: true,
+            type: 'info'
+          }
+        )
+      } else {
+        console.log('❌ 获取待办事项详情失败，错误码:', response.code, '错误信息:', response.message)
+        ElMessage.error(response.message || '获取详情失败')
+      }
+    } else {
+      // 非标准格式，直接显示响应数据
+      console.log('📄 获取待办事项详情非标准格式响应，直接显示')
+      let todoDetail = todo
+      
+      if (Array.isArray(response)) {
+        todoDetail = response.find(item => item.id === todo.id) || todo
+      } else if (typeof response === 'object' && response !== null) {
+        todoDetail = response
+      }
+      
+      ElMessageBox.alert(
+        `<div style="text-align: left;">
+          <h3>${todoDetail.title}</h3>
+          ${todoDetail.description ? `<p style="margin: 10px 0;">${todoDetail.description}</p>` : ''}
+          ${todoDetail.deadline ? `<p><strong>截止日期:</strong> ${todoDetail.deadline}</p>` : ''}
+          ${todoDetail.priority !== undefined && todoDetail.priority !== null ? `<p><strong>优先级:</strong> ${getPriorityText(todoDetail.priority)}</p>` : ''}
+          <p><strong>状态:</strong> ${todoDetail.completed ? '已完成' : '未完成'}</p>
+        </div>`,
+        '待办事项详情',
+        {
+          confirmButtonText: '确定',
+          dangerouslyUseHTMLString: true,
+          type: 'info'
+        }
+      )
+    }
+  } catch (error) {
+    console.error('获取待办事项详情失败:', error)
+    console.error('错误详情:', error.response?.data)
+    
+    let errorMessage = '获取详情失败，请稍后重试'
+    if (error.response?.status === 404) {
+      errorMessage = '待办事项不存在'
+    } else if (error.response?.status === 500) {
+      errorMessage = '服务器内部错误，请稍后重试'
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message
+    }
+    
+    ElMessage.error(errorMessage)
+  }
+}
+
 const handleTodoChange = async (todo) => {
   try {
     console.log('🔄 更新待办事项状态:', todo.id, 'completed:', todo.completed)
-    console.log('请求URL:', `http://192.168.1.134:8082/api/home/todos/${todo.id}`)
+    console.log('请求URL:', `${BASE_URL}/api/home/todos/${todo.id}`)
     
     const updateData = {
       title: todo.title,
@@ -1355,6 +1541,12 @@ const getPriorityText = (priority) => {
     default: return '低'
   }
 }
+
+// 监听日历日期变化，重新获取对应月份的事件
+watch(calendarDate, async (newDate) => {
+  console.log('📅 日历日期变化:', newDate)
+  await fetchCalendarEvents()
+})
 </script>
 
 <style lang="scss" scoped>
@@ -1491,6 +1683,21 @@ const getPriorityText = (priority) => {
       flex-direction: column;
       align-items: center;
       justify-content: center;
+      cursor: pointer;
+      transition: background-color 0.2s;
+
+      &:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+      }
+
+      &.has-event {
+        background-color: rgba(79, 172, 254, 0.1);
+        border-radius: 4px;
+
+        &:hover {
+          background-color: rgba(79, 172, 254, 0.2);
+        }
+      }
 
       .date-number {
         font-size: 14px;
@@ -1538,23 +1745,20 @@ const getPriorityText = (priority) => {
       overflow-y: auto;
 
       .todo-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
         padding: 8px 0;
         border-bottom: 1px solid $border-color;
+        cursor: pointer;
+        transition: background-color 0.2s;
+
+        &:hover {
+          background-color: rgba(0, 0, 0, 0.02);
+        }
 
         &:last-child {
           border-bottom: none;
         }
 
-        &.completed {
-          opacity: 0.6;
 
-          .todo-text {
-            text-decoration: line-through;
-          }
-        }
 
         .todo-content {
           flex: 1;
@@ -1625,18 +1829,18 @@ const getPriorityText = (priority) => {
         align-items: center;
         padding: 12px 0;
         border-bottom: 1px solid $border-color;
+        cursor: pointer;
+        transition: background-color 0.2s;
+
+        &:hover {
+          background-color: rgba(0, 0, 0, 0.02);
+        }
 
         &:last-child {
           border-bottom: none;
         }
 
-        &.completed {
-          opacity: 0.6;
 
-          .todo-text {
-            text-decoration: line-through;
-          }
-        }
 
         .todo-content {
           flex: 1;
