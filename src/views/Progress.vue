@@ -464,6 +464,7 @@ import {
 } from '@element-plus/icons-vue'
 import { themeColors } from '@/styles/variables.js'
 import { userApi } from '@/api'
+import { BASE_URL } from '@/config/api.js'
 
 const router = useRouter()
 
@@ -611,7 +612,7 @@ const handleContinue = (courseId) => {
 const handleViewDetail = async (courseId) => {
   try {
     console.log('🔍 获取课程详情，课程ID:', courseId)
-    console.log('请求URL:', `http://192.168.1.165:8082/api/progress/courses/${courseId}`)
+    console.log('请求URL:', `${BASE_URL}/api/progress/courses/${courseId}`)
     
     courseDetailLoading.value = true
     currentCourseDetail.value = null
@@ -738,19 +739,23 @@ const handleSubmitAssignment = async () => {
   try {
     submitLoading.value = true
     console.log('📤 提交作业，作业ID:', currentAssignment.value.id)
-    console.log('请求URL:', `http://192.168.1.165:8082/api/progress/assignments/${currentAssignment.value.id}/submit`)
+    console.log('请求URL:', `${BASE_URL}/api/progress/assignments/${currentAssignment.value.id}/submit`)
     console.log('提交数据:', submitForm.value)
     
-    const submitData = {
-      content: submitForm.value.content,
-      attachments: submitForm.value.attachments.map(file => ({
-        name: file.name,
-        url: file.url || URL.createObjectURL(file),
-        size: file.size
-      }))
+    // 创建FormData对象来处理文件上传
+    const formData = new FormData()
+    formData.append('content', submitForm.value.content)
+    
+    // 添加文件到FormData
+    if (submitForm.value.attachments && submitForm.value.attachments.length > 0) {
+      submitForm.value.attachments.forEach(file => {
+        formData.append('attachments', file)
+      })
     }
     
-    const response = await userApi.submitAssignment(currentAssignment.value.id, submitData)
+    console.log('📤 提交数据 (FormData):', formData)
+    
+    const response = await userApi.submitAssignment(currentAssignment.value.id, formData)
     console.log('📝 提交作业响应:', response)
     
     // 检查响应格式
@@ -1060,7 +1065,7 @@ const handleTabChange = (tab) => {
 const fetchProgressStats = async () => {
   try {
     console.log('📊 获取学习进度统计数据...')
-    console.log('请求URL: http://192.168.1.165:8082/api/progress/stats')
+    console.log('请求URL:', `${BASE_URL}/api/progress/stats`)
     
     const response = await userApi.getProgressStats()
     console.log('📝 学习进度统计响应:', response)
@@ -1191,7 +1196,7 @@ const getDefaultCoursesData = () => {
 const fetchProgressCourses = async () => {
   try {
     console.log('📚 获取已选择课程列表...')
-    console.log('请求URL: http://192.168.1.165:8082/api/courses/selected')
+    console.log('请求URL:', `${BASE_URL}/api/courses/selected`)
     console.log('📚 获取前courses.value:', courses.value)
     
     const response = await userApi.getSelectedCourses()
@@ -1280,7 +1285,7 @@ const fetchProgressCourses = async () => {
 const fetchCreditsTrend = async () => {
   try {
     console.log('📈 获取学分获取趋势数据...')
-    console.log('请求URL: http://192.168.1.165:8082/api/progress/credits-trend')
+    console.log('请求URL:', `${BASE_URL}/api/progress/credits-trend`)
     
     const response = await userApi.getCreditsTrend()
     console.log('📝 学分趋势响应:', response)
@@ -1329,7 +1334,7 @@ const fetchCreditsTrend = async () => {
 const fetchTimeDistribution = async () => {
   try {
     console.log('⏰ 获取学习时长分布数据...')
-    console.log('请求URL: http://192.168.1.165:8082/api/progress/time-distribution')
+    console.log('请求URL:', `${BASE_URL}/api/progress/time-distribution`)
     
     const response = await userApi.getTimeDistribution()
     console.log('📝 学习时长分布响应:', response)
@@ -1381,7 +1386,7 @@ const fetchTimeDistribution = async () => {
 const fetchAssignments = async () => {
   try {
     console.log('📋 获取作业列表数据...')
-    console.log('请求URL: http://192.168.1.165:8082/api/progress/assignments')
+    console.log('请求URL:', `${BASE_URL}/api/progress/assignments`)
     
     const response = await userApi.getAssignments()
     console.log('📝 作业列表响应:', response)
@@ -1393,7 +1398,8 @@ const fetchAssignments = async () => {
       const successCodes = [200, 0, 201, 204]
       if (successCodes.includes(response.code)) {
         console.log('✅ 获取作业列表成功，响应码:', response.code)
-        const data = response.data || response || []
+        const data = response.data?.list || response.data || response || []
+        console.log('📊 作业数据数组:', data)
         
         // 处理数据格式，确保每个作业都有必要的字段
         homeworkList.value = Array.isArray(data) ? data.map((item, index) => ({
@@ -1407,6 +1413,8 @@ const fetchAssignments = async () => {
           description: item.description || '',
           type: item.type || 'homework'
         })) : []
+        
+        console.log('✅ 作业列表处理完成，共', homeworkList.value.length, '项作业')
       } else {
         console.log('❌ 获取作业列表失败，错误码:', response.code, '错误信息:', response.message)
         // 使用默认数据作为fallback
@@ -1497,7 +1505,7 @@ const fetchAssignments = async () => {
 const fetchExams = async () => {
   try {
     console.log('📝 获取考试列表数据...')
-    console.log('请求URL: http://192.168.1.165:8082/api/progress/exams')
+    console.log('请求URL:', `${BASE_URL}/api/progress/exams`)
     
     const response = await userApi.getExams()
     console.log('📝 考试列表响应:', response)
@@ -1509,7 +1517,8 @@ const fetchExams = async () => {
       const successCodes = [200, 0, 201, 204]
       if (successCodes.includes(response.code)) {
         console.log('✅ 获取考试列表成功，响应码:', response.code)
-        const data = response.data || response || []
+        const data = response.data?.list || response.data || response || []
+        console.log('📊 考试数据数组:', data)
         
         // 处理数据格式，确保每个考试都有必要的字段
         examList.value = Array.isArray(data) ? data.map((item, index) => ({
@@ -1523,6 +1532,8 @@ const fetchExams = async () => {
           description: item.description || '',
           type: item.type || 'exam'
         })) : []
+        
+        console.log('✅ 考试列表处理完成，共', examList.value.length, '项考试')
       } else {
         console.log('❌ 获取考试列表失败，错误码:', response.code, '错误信息:', response.message)
         // 使用默认数据作为fallback

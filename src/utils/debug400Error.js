@@ -1,209 +1,195 @@
 // 400错误调试工具
-// 用于分析和调试项目删除报名时的400错误
-
-window.debug400Error = {
+import { BASE_URL } from '../config/api.js'
+export const debug400Error = {
   // 记录错误详情
-  logErrorDetails: function(error, project) {
+  logErrorDetails(error, project) {
     console.group('🔍 400错误详细分析')
     console.log('📋 错误对象:', error)
+    console.log('📋 响应状态:', error.response?.status)
+    console.log('📋 响应数据:', error.response?.data)
+    console.log('📋 响应头:', error.response?.headers)
+    console.log('📋 请求配置:', error.config)
     console.log('📋 项目信息:', project)
-    console.log('📋 错误响应:', error.response)
-    
-    if (error.response?.data) {
-      const data = error.response.data
-      console.log('📊 响应数据分析:')
-      console.log('   - code:', data.code)
-      console.log('   - message:', data.message)
-      console.log('   - data:', data.data)
-      console.log('   - errors:', data.errors)
-      
-      // 深度分析errors对象
-      if (data.errors && typeof data.errors === 'object') {
-        console.log('🔍 Errors对象深度分析:')
-        Object.entries(data.errors).forEach(([key, value]) => {
-          console.log(`   ${key}:`, value)
-          
-          // 如果是对象，继续展开
-          if (value && typeof value === 'object') {
-            Object.entries(value).forEach(([subKey, subValue]) => {
-              console.log(`     ${subKey}:`, subValue)
-            })
-          }
-        })
-      }
-    }
-    
     console.groupEnd()
   },
 
   // 分析可能的原因
-  analyzePossibleCauses: function(project) {
-    console.group('🤔 可能原因分析')
+  analyzePossibleCauses(project) {
+    console.group('🔍 可能的错误原因分析')
     
     const causes = []
     
     // 1. 检查项目状态
-    const deletableStatuses = ['可报名', '申请中', '已报名']
-    if (project.status && !deletableStatuses.includes(project.status)) {
-      causes.push({
-        type: '项目状态限制',
-        description: `项目状态为"${project.status}"，不允许删除`,
-        solution: '项目状态需要是"可报名"、"申请中"或"已报名"'
-      })
+    if (!project.applicationStatus) {
+      causes.push('❌ 缺少applicationStatus字段')
+    } else if (project.applicationStatus !== '待审核') {
+      causes.push(`⚠️ 申请状态为"${project.applicationStatus}"，不是"待审核"`)
     }
     
-    // 2. 检查项目时间
-    const now = new Date()
-    if (project.startDate) {
-      const startDate = new Date(project.startDate)
-      if (startDate <= now) {
-        causes.push({
-          type: '项目已开始',
-          description: `项目开始时间${project.startDate}已过`,
-          solution: '项目开始后无法删除报名，请联系管理员'
-        })
-      }
+    // 2. 检查项目ID
+    if (!project.id) {
+      causes.push('❌ 缺少项目ID')
     }
     
-    if (project.endDate) {
-      const endDate = new Date(project.endDate)
-      if (endDate <= now) {
-        causes.push({
-          type: '项目已结束',
-          description: `项目结束时间${project.endDate}已过`,
-          solution: '项目结束后无法删除报名记录'
-        })
-      }
+    // 3. 检查时间相关字段
+    const currentTime = new Date()
+    const startTime = project.startTime || project.startDate
+    const endTime = project.endTime || project.endDate
+    
+    if (startTime && new Date(startTime) <= currentTime) {
+      causes.push('⚠️ 项目可能已开始')
     }
     
-    // 3. 检查报名人数
-    if (project.enrolled && project.capacity && project.enrolled >= project.capacity) {
-      causes.push({
-        type: '项目已满员',
-        description: `项目人数已满 (${project.enrolled}/${project.capacity})`,
-        solution: '项目满员时可能有特殊限制，请联系管理员'
-      })
+    if (endTime && new Date(endTime) <= currentTime) {
+      causes.push('⚠️ 项目可能已结束')
     }
     
-    // 4. 检查用户权限
-    const userInfo = localStorage.getItem('userInfo')
-    if (!userInfo && !localStorage.getItem('token')) {
-      causes.push({
-        type: '用户未登录',
-        description: '检测到用户未登录或token无效',
-        solution: '请重新登录后再试'
-      })
+    // 4. 检查API端点
+    const expectedEndpoint = `/projects/${project.id}/apply`
+    const actualEndpoint = error.config?.url
+    if (actualEndpoint !== expectedEndpoint) {
+      causes.push(`❌ API端点不匹配: 期望 ${expectedEndpoint}, 实际 ${actualEndpoint}`)
     }
+    
+    // 5. 检查请求方法
+    if (error.config?.method?.toLowerCase() !== 'delete') {
+      causes.push(`❌ 请求方法错误: 期望 DELETE, 实际 ${error.config?.method}`)
+    }
+    
+    console.log('可能的原因:', causes)
     
     if (causes.length === 0) {
-      causes.push({
-        type: '未知原因',
-        description: '未发现明显的客户端问题',
-        solution: '可能是后端业务逻辑限制，请检查后端日志'
-      })
+      console.log('✅ 未发现明显的客户端错误，可能是服务器端问题')
     }
     
-    causes.forEach((cause, index) => {
-      console.log(`${index + 1}. ${cause.type}`)
-      console.log(`   描述: ${cause.description}`)
-      console.log(`   建议: ${cause.solution}`)
-      console.log('')
-    })
-    
     console.groupEnd()
-    return causes
   },
 
   // 生成调试报告
-  generateDebugReport: function(error, project) {
+  generateDebugReport(error, project) {
     const report = {
       timestamp: new Date().toISOString(),
       error: {
         status: error.response?.status,
         statusText: error.response?.statusText,
-        message: error.message,
-        data: error.response?.data
+        message: error.response?.data?.message,
+        data: error.response?.data,
+        headers: error.response?.headers
+      },
+      request: {
+        url: error.config?.url,
+        method: error.config?.method,
+        baseURL: error.config?.baseURL,
+        headers: error.config?.headers,
+        data: error.config?.data
       },
       project: {
         id: project.id,
         name: project.name,
+        applicationStatus: project.applicationStatus,
+        participationStatus: project.participationStatus,
         status: project.status,
         enrolled: project.enrolled,
-        capacity: project.capacity,
-        startDate: project.startDate,
-        endDate: project.endDate
+        capacity: project.capacity
       },
-      user: {
-        hasToken: !!localStorage.getItem('token'),
-        userInfo: localStorage.getItem('userInfo')
-      },
-      environment: {
-        userAgent: navigator.userAgent,
-        url: window.location.href
-      }
+      userInfo: this.getUserInfo(),
+      environment: this.getEnvironmentInfo()
     }
     
-    console.log('📄 调试报告已生成:', report)
+    console.log('📋 完整调试报告:', report)
     return report
   },
 
-  // 尝试修复常见问题
-  attemptFixes: async function(project) {
-    console.group('🔧 尝试修复常见问题')
+  // 获取用户信息
+  getUserInfo() {
+    try {
+      const userInfo = localStorage.getItem('userInfo')
+      return userInfo ? JSON.parse(userInfo) : null
+    } catch (error) {
+      return null
+    }
+  },
+
+  // 获取环境信息
+  getEnvironmentInfo() {
+    return {
+      userAgent: navigator.userAgent,
+      url: window.location.href,
+      timestamp: new Date().toISOString(),
+      localStorage: {
+        hasToken: !!localStorage.getItem('token'),
+        hasUserInfo: !!localStorage.getItem('userInfo')
+      }
+    }
+  },
+
+  // 尝试自动修复
+  attemptFixes(project) {
+    console.group('🔧 尝试自动修复')
     
     const fixes = []
     
-    // 1. 刷新项目数据
-    try {
-      console.log('🔄 尝试刷新项目数据...')
-      // 这里可以调用刷新数据的API
-      fixes.push('项目数据刷新尝试完成')
-    } catch (e) {
-      console.warn('刷新项目数据失败:', e)
-      fixes.push('项目数据刷新失败')
-    }
-    
-    // 2. 重新验证用户身份
-    try {
-      console.log('🔑 尝试重新验证用户身份...')
-      const token = localStorage.getItem('token')
-      if (token) {
-        fixes.push('用户token有效')
-      } else {
-        fixes.push('用户token无效，需要重新登录')
+    // 1. 尝试刷新项目数据
+    fixes.push({
+      name: '刷新项目数据',
+      action: () => {
+        console.log('🔄 尝试刷新项目数据...')
+        // 这里应该调用刷新函数，但由于作用域限制，只能提供建议
+        console.log('建议: 调用 refreshProjectData() 函数')
       }
-    } catch (e) {
-      console.warn('验证用户身份失败:', e)
-      fixes.push('用户身份验证失败')
-    }
+    })
     
-    // 3. 检查网络连接
-    try {
-      console.log('🌐 检查网络连接...')
-      const response = await fetch('/api/health', { method: 'HEAD' })
-      if (response.ok) {
-        fixes.push('网络连接正常')
-      } else {
-        fixes.push('网络连接异常')
+    // 2. 检查Token有效性
+    fixes.push({
+      name: '检查Token',
+      action: () => {
+        const token = localStorage.getItem('token')
+        if (!token) {
+          console.log('❌ 未找到Token，可能需要重新登录')
+        } else {
+          console.log('✅ 找到Token:', token.substring(0, 20) + '...')
+        }
       }
-    } catch (e) {
-      console.warn('网络检查失败:', e)
-      fixes.push('网络检查失败')
-    }
+    })
     
-    fixes.forEach((fix, index) => {
-      console.log(`${index + 1}. ${fix}`)
+    // 3. 验证API端点
+    fixes.push({
+      name: '验证API端点',
+      action: () => {
+        const expectedUrl = `${BASE_URL}/projects/${project.id}/apply`
+        console.log('期望的API端点:', expectedUrl)
+      }
+    })
+    
+    console.log('可用的修复方案:', fixes)
+    
+    // 执行所有修复方案
+    fixes.forEach(fix => {
+      try {
+        fix.action()
+      } catch (error) {
+        console.error(`修复"${fix.name}"失败:`, error)
+      }
     })
     
     console.groupEnd()
-    return fixes
+  },
+
+  // 建议的后端检查项
+  getBackendChecklist() {
+    return [
+      '1. 检查 DELETE /api/projects/{id}/apply 路由是否正确定义',
+      '2. 验证后端是否接收和处理 DELETE 请求',
+      '3. 检查后端对 applicationStatus 字段的验证逻辑',
+      '4. 确认后端返回的错误信息格式',
+      '5. 检查数据库中项目状态是否正确',
+      '6. 验证权限控制逻辑是否正确',
+      '7. 检查是否有其他必需的请求参数或头部'
+    ]
   }
 }
 
-// 自动加载到全局
-console.log('🔧 400错误调试工具已加载到 window.debug400Error')
-console.log('📝 使用方法:')
-console.log('   window.debug400Error.logErrorDetails(error, project)')
-console.log('   window.debug400Error.analyzePossibleCauses(project)')
-console.log('   window.debug400Error.generateDebugReport(error, project)')
-console.log('   window.debug400Error.attemptFixes(project)')
+// 在全局注册调试工具
+if (typeof window !== 'undefined') {
+  window.debug400Error = debug400Error
+}

@@ -27,12 +27,21 @@
 
     <!-- 统计信息 -->
     <el-row :gutter="20" class="stats-row">
-      <el-col :xs="24" :sm="12" :md="6" v-for="stat in statistics" :key="stat.label">
-        <el-card class="stat-card" shadow="hover">
+      <el-col :xs="24" :sm="12" :md="4" :lg="4" :xl="4" v-for="stat in statistics" :key="stat.label">
+        <el-card 
+          class="stat-card" 
+          :class="{ 'stat-card-clickable': isStatClickable(stat.label) }"
+          shadow="hover" 
+          @click="handleStatCardClick(stat)"
+        >
           <div class="stat-content">
             <div class="stat-icon" :style="{ background: stat.color }">
               <el-icon :size="24">
-                <component :is="stat.icon" />
+                <Collection v-if="stat.icon === 'Collection'" />
+                <Briefcase v-else-if="stat.icon === 'Briefcase'" />
+                <OfficeBuilding v-else-if="stat.icon === 'OfficeBuilding'" />
+                <TrendCharts v-else-if="stat.icon === 'TrendCharts'" />
+                <DataAnalysis v-else-if="stat.icon === 'DataAnalysis'" />
               </el-icon>
             </div>
             <div class="stat-info">
@@ -44,8 +53,8 @@
       </el-col>
     </el-row>
 
-    <!-- 筛选条件 - 只在显示全部项目时显示 -->
-    <el-card v-if="!showMyProjects" class="filter-card" shadow="never">
+    <!-- 筛选条件 -->
+    <el-card class="filter-card" shadow="never">
       <el-form :inline="true" :model="filterForm" class="filter-form">
         <el-form-item label="项目类型">
           <el-select v-model="filterForm.type" placeholder="全部" clearable style="width: 150px">
@@ -68,15 +77,26 @@
         <el-form-item label="项目状态">
           <el-select v-model="filterForm.status" placeholder="全部" clearable style="width: 150px">
             <el-option label="全部" value="" />
-            <el-option label="可报名" value="可报名" />
-            <el-option label="进行中" value="进行中" />
-            <el-option label="已结束" value="已结束" />
+            <template v-if="!showMyProjects">
+              <!-- 全部项目模式的状态选项 -->
+              <el-option label="可报名" value="可报名" />
+              <el-option label="进行中" value="进行中" />
+              <el-option label="已结束" value="已结束" />
+            </template>
+            <template v-else>
+              <!-- 我的项目模式的状态选项 -->
+              <el-option label="待审核" value="待审核" />
+              <el-option label="已通过" value="已通过" />
+              <el-option label="已拒绝" value="已拒绝" />
+              <el-option label="运行中" value="运行中" />
+              <el-option label="已完成" value="已完成" />
+            </template>
           </el-select>
         </el-form-item>
         <el-form-item>
           <el-input
             v-model="filterForm.keyword"
-            placeholder="搜索项目名称"
+            :placeholder="showMyProjects ? '搜索我的项目' : '搜索项目名称'"
             clearable
             style="width: 250px"
           >
@@ -140,22 +160,33 @@
             </div>
             <div class="info-row">
               <div class="info-item">
-                <el-icon><Clock /></el-icon>
-                <span>{{ project.duration }}周</span>
-              </div>
-              <div class="info-item">
-                <el-icon><User /></el-icon>
-                <span>{{ project.enrolled }}/{{ project.capacity }}人</span>
-              </div>
-            </div>
-            <div class="info-row">
-              <div class="info-item">
                 <el-icon><Trophy /></el-icon>
                 <span>{{ project.credits }}学分</span>
               </div>
               <div class="info-item">
                 <el-icon><Calendar /></el-icon>
                 <span>{{ project.startDate }}</span>
+              </div>
+            </div>
+            <div class="info-row" v-if="showMyProjects">
+              <div class="info-item">
+                <el-icon><Clock /></el-icon>
+                <span>申请状态: {{ project.applicationStatus || '未知' }}</span>
+              </div>
+              <div class="info-item" v-if="project.participationStatus">
+                <el-icon><TrendCharts /></el-icon>
+                <span>参与状态: {{ project.participationStatus }}</span>
+              </div>
+            </div>
+
+            <div class="info-row" v-if="!showMyProjects">
+              <div class="info-item">
+                <el-icon><Clock /></el-icon>
+                <span>{{ project.duration }}周</span>
+              </div>
+              <div class="info-item">
+                <el-icon><User /></el-icon>
+                <span>{{ project.enrolled }}/{{ project.capacity }}人</span>
               </div>
             </div>
           </div>
@@ -173,19 +204,22 @@
           </div>
 
           <!-- 项目进度信息 - 仅在我的项目中显示 -->
-          <div v-if="showMyProjects && project.progress" class="project-progress">
+          <div v-if="showMyProjects && (project.progress || project.participationStatus === '运行中')" class="project-progress">
             <div class="progress-header">
               <span class="progress-label">项目进度：</span>
-              <span class="progress-text">{{ project.progress.percentage || 0 }}%</span>
+              <span class="progress-text">{{ project.progress?.percentage || project.progress || 0 }}%</span>
             </div>
             <el-progress 
-              :percentage="project.progress.percentage || 0" 
-              :status="project.progress.status || 'normal'"
+              :percentage="project.progress?.percentage || project.progress || 0" 
+              :status="getProgressStatus(project.progress?.percentage || project.progress || 0)"
               :show-text="false"
               class="progress-bar"
             />
-            <div v-if="project.progress.description" class="progress-description">
+            <div v-if="project.progress?.description" class="progress-description">
               {{ project.progress.description }}
+            </div>
+            <div v-else-if="project.participationStatus === '运行中'" class="progress-description">
+              项目正在进行中...
             </div>
           </div>
 
@@ -215,13 +249,16 @@
             </el-button>
             <el-button
               type="danger"
-              @click="handleDeleteProject(project)"
-              v-if="showMyProjects"
-              :loading="deleting && deletingProjectId === project.id"
+              @click="handleCancelApplication(project)"
+              v-if="showMyProjects && (project.applicationStatus === '待审核' || project.applicationStatus === '申请中')"
+              size="small"
+              :loading="cancellingApplication && cancellingProjectId === project.id"
             >
-              <el-icon><Delete /></el-icon>
-              删除报名
+              <el-icon><CircleClose /></el-icon>
+              取消报名
             </el-button>
+
+
           </div>
         </div>
       </el-card>
@@ -314,9 +351,11 @@
           type="primary"
           @click="handleApplyFromDetail"
           :disabled="selectedProjectDetail?.status !== '可报名' || selectedProjectDetail?.enrolled >= selectedProjectDetail?.capacity"
+          v-if="!showMyProjects"
         >
           立即报名
         </el-button>
+
       </template>
     </el-dialog>
 
@@ -372,6 +411,7 @@ import {
   Search,
   View,
   CircleCheck,
+  CircleClose,
   Briefcase,
   OfficeBuilding,
   Clock,
@@ -381,11 +421,12 @@ import {
   Collection,
   TrendCharts,
   DataAnalysis,
-  Delete,
   Refresh
 } from '@element-plus/icons-vue'
 import { themeColors } from '@/styles/variables.js'
 import { projectApi, userApi } from '@/api'
+import '@/utils/debug400Error.js' // 导入400错误调试工具
+import { BASE_URL } from '@/config/api.js'
 
 const filterForm = ref({
   type: '',
@@ -404,10 +445,12 @@ const applyFormRef = ref(null)
 const showMyProjects = ref(false)
 const myProjects = ref([])
 const loading = ref(false)
-const deleting = ref(false)
-const deletingProjectId = ref(null)
+
 const refreshingProgress = ref(false)
 const refreshingProjectId = ref(null)
+
+const cancellingApplication = ref(false)
+const cancellingProjectId = ref(null)
 
 const applyForm = ref({
   name: '',
@@ -434,21 +477,21 @@ const applyRules = {
 // 统计数据 - 初始化为默认值，会通过API更新
 const statistics = ref([
   {
-    label: '可报名项目',
+    label: '可报名',
     value: '0',
     icon: 'Collection',
     color: themeColors.gradientPrimary
   },
   {
-    label: '已报名项目',
+    label: '已报名',
     value: '0',
-    icon: 'Briefcase',
-    color: themeColors.gradientPink
+    icon: 'Collection',
+    color: '#ffcccc'
   },
   {
-    label: '已完成项目',
+    label: '正在进行的项目',
     value: '0',
-    icon: 'Trophy',
+    icon: 'TrendCharts',
     color: themeColors.gradientBlue
   },
   {
@@ -459,177 +502,32 @@ const statistics = ref([
   }
 ])
 
-const allProjects = ref([
-  {
-    id: 1,
-    name: '电商平台前端开发',
-    description: '参与大型电商平台的前端开发，使用Vue3+TypeScript构建现代化的用户界面，实现购物车、订单管理等核心功能。',
-    company: '阿里巴巴',
-    type: 'Web开发',
-    difficulty: '中级',
-    duration: 12,
-    credits: 1,
-    startDate: '2024-03-01',
-    enrolled: 15,
-    capacity: 20,
-    status: '可报名',
-    skills: ['Vue.js', 'TypeScript', 'Element Plus', 'Vite'],
-    content: [
-      '参与电商平台前端架构设计',
-      '实现商品展示、购物车、订单等核心功能',
-      '优化页面性能和用户体验',
-      '与后端团队协作完成接口对接'
-    ],
-    gains: [
-      '掌握大型项目的前端开发流程',
-      '提升Vue3和TypeScript实战能力',
-      '学习企业级代码规范和最佳实践',
-      '获得1学分'
-    ]
-  },
-  {
-    id: 2,
-    name: '移动端App开发',
-    description: '使用React Native开发跨平台移动应用，实现用户注册登录、内容浏览、社交互动等功能模块。',
-    company: '腾讯',
-    type: '移动开发',
-    difficulty: '中级',
-    duration: 16,
-    credits: 1,
-    startDate: '2024-03-15',
-    enrolled: 18,
-    capacity: 25,
-    status: '可报名',
-    skills: ['React Native', 'JavaScript', 'Redux', 'Node.js'],
-    content: [
-      '使用React Native开发移动应用',
-      '实现用户认证和权限管理',
-      '开发内容浏览和社交功能',
-      '进行应用性能优化和测试'
-    ],
-    gains: [
-      '掌握移动端开发技术',
-      '学习跨平台开发方案',
-      '了解移动应用发布流程',
-      '获得1学分'
-    ]
-  },
-  {
-    id: 3,
-    name: '数据分析与可视化',
-    description: '对电商平台销售数据进行深度分析，使用Python进行数据清洗和挖掘，并制作可视化报表。',
-    company: '京东',
-    type: '数据分析',
-    difficulty: '高级',
-    duration: 10,
-    credits: 1,
-    startDate: '2024-02-20',
-    enrolled: 12,
-    capacity: 15,
-    status: '进行中',
-    skills: ['Python', 'Pandas', 'Matplotlib', 'SQL'],
-    content: [
-      '数据清洗和预处理',
-      '销售数据分析和挖掘',
-      '制作数据可视化报表',
-      '撰写数据分析报告'
-    ],
-    gains: [
-      '掌握数据分析全流程',
-      '提升Python数据处理能力',
-      '学习数据可视化技巧',
-      '获得1学分'
-    ]
-  },
-  {
-    id: 4,
-    name: '智能推荐系统',
-    description: '基于机器学习算法开发个性化推荐系统，使用协同过滤和深度学习技术提升推荐准确率。',
-    company: '字节跳动',
-    type: '人工智能',
-    difficulty: '高级',
-    duration: 14,
-    credits: 1,
-    startDate: '2024-04-01',
-    enrolled: 8,
-    capacity: 15,
-    status: '可报名',
-    skills: ['Python', 'TensorFlow', '机器学习', '推荐算法'],
-    content: [
-      '研究推荐算法原理',
-      '实现协同过滤算法',
-      '使用深度学习优化推荐效果',
-      '评估和优化推荐系统性能'
-    ],
-    gains: [
-      '深入理解推荐系统原理',
-      '掌握机器学习实战应用',
-      '学习模型训练和优化',
-      '获得1学分'
-    ]
-  },
-  {
-    id: 5,
-    name: '企业管理系统开发',
-    description: '开发企业内部管理系统，包括人事管理、财务管理、项目管理等模块，使用Spring Boot和Vue.js。',
-    company: '华为',
-    type: '系统开发',
-    difficulty: '中级',
-    duration: 12,
-    credits: 1,
-    startDate: '2024-03-10',
-    enrolled: 20,
-    capacity: 20,
-    status: '已结束',
-    skills: ['Java', 'Spring Boot', 'Vue.js', 'MySQL'],
-    content: [
-      '系统需求分析和设计',
-      '后端API开发',
-      '前端界面开发',
-      '系统测试和部署'
-    ],
-    gains: [
-      '掌握全栈开发技能',
-      '学习企业级系统设计',
-      '了解系统开发流程',
-      '获得1学分'
-    ]
-  },
-  {
-    id: 6,
-    name: '微服务架构实践',
-    description: '基于Spring Cloud构建微服务架构，实现服务注册发现、配置中心、网关路由等功能。',
-    company: '美团',
-    type: '系统开发',
-    difficulty: '高级',
-    duration: 14,
-    credits: 1,
-    startDate: '2024-04-10',
-    enrolled: 10,
-    capacity: 18,
-    status: '可报名',
-    skills: ['Java', 'Spring Cloud', 'Docker', 'Kubernetes'],
-    content: [
-      '微服务架构设计',
-      '实现服务注册与发现',
-      '配置中心和服务网关',
-      '容器化部署和运维'
-    ],
-    gains: [
-      '掌握微服务架构',
-      '学习分布式系统设计',
-      '了解容器化技术',
-      '获得1学分'
-    ]
-  }
-])
+const allProjects = ref([])
+
+// 当前筛选模式
+const currentFilterMode = ref('all')
 
 const filteredProjects = computed(() => {
-  // 根据显示模式选择数据源
-  let result = showMyProjects.value ? myProjects.value : allProjects.value
+  let result = []
+  
+  console.log(`🔍 筛选项目 - 模式: ${showMyProjects.value ? '我的项目' : '全部项目'}, 当前筛选模式: ${currentFilterMode.value}`)
 
-  // 只有在显示全部项目时才进行筛选
-  if (!showMyProjects.value) {
+  // 根据不同的筛选模式处理数据源
+  if (currentFilterMode.value === '可报名') {
+    // 可报名模式：筛选出用户没有报名过的项目
+    const enrolledProjectIds = myProjects.value.map(p => p.id)
+    result = allProjects.value.filter(project => 
+      project.status === '可报名' && 
+      project.enrolled < project.capacity &&
+      !enrolledProjectIds.includes(project.id)
+    )
+  } else {
+    // 其他模式：根据显示模式选择数据源
+    result = showMyProjects.value ? myProjects.value : allProjects.value
+  }
+
+  // 只有在显示全部项目且不是可报名模式时才进行完整筛选
+  if (!showMyProjects.value && currentFilterMode.value !== '可报名') {
     if (filterForm.value.type) {
       result = result.filter(p => p.type === filterForm.value.type)
     }
@@ -644,22 +542,111 @@ const filteredProjects = computed(() => {
 
     if (filterForm.value.keyword) {
       const keyword = filterForm.value.keyword.toLowerCase()
-      result = result.filter(p => p.name.toLowerCase().includes(keyword))
+      result = result.filter(p => 
+        p.name.toLowerCase().includes(keyword) ||
+        p.company.toLowerCase().includes(keyword) ||
+        p.description.toLowerCase().includes(keyword)
+      )
     }
-  } else {
-    // 我的项目模式下，只支持按关键词搜索
+  } else if (showMyProjects.value) {
+    // 我的项目模式下的筛选
+    if (filterForm.value.type) {
+      result = result.filter(p => p.type === filterForm.value.type)
+    }
+
+    if (filterForm.value.difficulty) {
+      result = result.filter(p => p.difficulty === filterForm.value.difficulty)
+    }
+
+    if (filterForm.value.status) {
+      // 我的项目状态下筛选
+      result = result.filter(p => {
+        // 检查申请状态
+        if (p.applicationStatus === filterForm.value.status) {
+          return true
+        }
+        // 检查参与状态
+        if (p.participationStatus === filterForm.value.status) {
+          return true
+        }
+        // 检查映射后的状态
+        if (p.status === filterForm.value.status) {
+          return true
+        }
+        return false
+      })
+    }
+
     if (filterForm.value.keyword) {
       const keyword = filterForm.value.keyword.toLowerCase()
-      result = result.filter(p => p.name.toLowerCase().includes(keyword))
+      result = result.filter(p => 
+        p.name.toLowerCase().includes(keyword) ||
+        p.company.toLowerCase().includes(keyword) ||
+        p.description.toLowerCase().includes(keyword) ||
+        p.projectName?.toLowerCase().includes(keyword)
+      )
     }
   }
 
+  console.log(`✨ 筛选结果: ${result.length} 个项目`)
   return result
 })
 
+// 判断统计卡片是否可点击
+const isStatClickable = (label) => {
+  const clickableLabels = ['可报名', '已报名', '正在进行的项目']
+  return clickableLabels.includes(label)
+}
+
+// 处理统计卡片点击
+const handleStatCardClick = (stat) => {
+  if (!isStatClickable(stat.label)) {
+    return
+  }
+  
+  console.log('📊 点击统计卡片:', stat.label)
+  
+  // 根据点击的统计卡片设置不同的逻辑
+  if (stat.label === '可报名') {
+    // 可报名：显示全部项目模式，筛选出用户没有报名过的项目
+    showMyProjects.value = false
+    currentFilterMode.value = '可报名'
+    
+    // 重置筛选条件
+    filterForm.value.type = ''
+    filterForm.value.difficulty = ''
+    filterForm.value.status = ''
+    filterForm.value.keyword = ''
+    currentPage.value = 1
+    
+    // 加载全部项目数据
+    refreshProjectData()
+    
+  } else {
+    // 已报名和正在进行的项目：切换到我的项目模式
+    showMyProjects.value = true
+    currentFilterMode.value = stat.label
+    
+    // 根据点击的统计卡片设置筛选条件
+    if (stat.label === '已报名') {
+      filterForm.value.status = '待审核'
+    } else if (stat.label === '正在进行的项目') {
+      filterForm.value.status = '已通过'
+    }
+    
+    // 重置其他筛选条件
+    filterForm.value.type = ''
+    filterForm.value.difficulty = ''
+    filterForm.value.keyword = ''
+    currentPage.value = 1
+    
+    // 加载我的项目数据
+    loadMyProjects()
+  }
+}
+
 const handleSearch = () => {
   currentPage.value = 1
-  ElMessage.success('搜索完成')
 }
 
 const handleReset = () => {
@@ -676,6 +663,7 @@ const handleReset = () => {
 const handleShowAllProjects = async () => {
   console.log('📋 显示全部项目')
   showMyProjects.value = false
+  currentFilterMode.value = 'all'
   currentPage.value = 1
   // 重置筛选条件
   filterForm.value = {
@@ -693,6 +681,7 @@ const handleShowAllProjects = async () => {
 const handleShowMyProjects = async () => {
   console.log('👤 显示我的项目')
   showMyProjects.value = true
+  currentFilterMode.value = 'all'
   currentPage.value = 1
   
   // 加载我的项目数据
@@ -704,68 +693,274 @@ const loadMyProjects = async () => {
   try {
     loading.value = true
     console.log('🔄 正在加载我的项目...')
+    console.log('📡 请求URL:', `${BASE_URL}/projects/my-projects`)
     
     const response = await projectApi.getMyProjects()
     console.log('📋 我的项目响应:', response)
     
     let projects = []
-    if (response && response.data) {
-      // 根据数据格式处理
-      if (Array.isArray(response.data)) {
-        projects = response.data
-      } else if (response.data.list && Array.isArray(response.data.list)) {
+    if (response && response.code === 200 && response.data) {
+      // 根据API返回的数据格式处理
+      if (response.data.list && Array.isArray(response.data.list)) {
         projects = response.data.list
-      } else if (response.data.projects && Array.isArray(response.data.projects)) {
-        projects = response.data.projects
+      } else if (Array.isArray(response.data)) {
+        projects = response.data
       } else {
         console.warn('⚠️ 无法识别的数据格式')
         projects = []
       }
       
-      // 为每个已参与的项目获取进度信息
-      console.log('📈 开始获取项目进度信息...')
-      const projectsWithProgress = await Promise.allSettled(
-        projects.map(async (project) => {
-          try {
-            console.log(`🔍 获取项目 ${project.id} 的进度...`)
-            const progressResponse = await projectApi.getProjectProgress(project.id)
-            console.log(`📊 项目 ${project.id} 进度响应:`, progressResponse)
-            
-            // 添加进度信息到项目对象
-            return {
-              ...project,
-              progress: progressResponse?.data || progressResponse || null
+      // 标准化项目数据格式
+      projects = projects.map(project => ({
+        // 基础信息
+        id: project.projectId,
+        name: project.projectName || project.name,
+        description: project.description || '暂无描述',
+        
+        // 项目详情
+        company: project.company || '未知企业',
+        type: project.type || '未分类',
+        difficulty: project.difficulty || '中级',
+        credits: project.credits || 0,
+        startDate: project.startDate || '未知时间',
+        
+        // 状态信息
+        status: mapApplicationStatus(project.applicationStatus, project.participationStatus),
+        applicationStatus: project.applicationStatus,
+        participationStatus: project.participationStatus,
+        
+        // 申请相关ID - 用于取消报名
+        applicationId:  project.id, // 优先使用applicationId
+        
+        // 进度信息 - 已参与的项目才有进度
+        progress: project.participationStatus === '运行中' ? {
+          percentage: project.progress || 0,
+          status: project.progress >= 100 ? 'success' : 'normal',
+          description: `当前进度: ${project.progress || 0}%`
+        } : null,
+        
+        // 其他信息
+        duration: 12, // 默认周数
+        enrolled: 1, // 我的项目报名人数
+        capacity: 20, // 默认容量
+        applicationDate: project.applicationDate,
+        skills: getDefaultSkills(project.type),
+        
+        // 原始数据保留
+        _raw: project
+      }))
+      
+      // 为已参与的项目获取详细进度信息
+      const activeProjects = projects.filter(p => p.participationStatus === '运行中')
+      if (activeProjects.length > 0) {
+        console.log('📈 开始获取活跃项目的进度信息...')
+        
+        const projectsWithProgress = await Promise.allSettled(
+          activeProjects.map(async (project) => {
+            try {
+              console.log(`🔍 获取项目 ${project.id} 的进度...`)
+              const progressResponse = await projectApi.getProjectProgress(project.id)
+              console.log(`📊 项目 ${project.id} 进度响应:`, progressResponse)
+              
+              // 更新进度信息
+              return {
+                ...project,
+                progress: progressResponse?.data || progressResponse || project.progress
+              }
+            } catch (error) {
+              console.warn(`⚠️ 获取项目 ${project.id} 进度失败:`, error)
+              return project // 保持原有进度信息
             }
-          } catch (error) {
-            console.warn(`⚠️ 获取项目 ${project.id} 进度失败:`, error)
-            // 即使获取进度失败，也返回项目信息，只是进度为null
-            return {
-              ...project,
-              progress: null
+          })
+        )
+        
+        // 更新活跃项目的进度信息
+        projectsWithProgress.forEach((result, index) => {
+          if (result.status === 'fulfilled') {
+            const projectIndex = projects.findIndex(p => p.id === result.value.id)
+            if (projectIndex !== -1) {
+              projects[projectIndex] = result.value
             }
           }
         })
-      )
+      }
       
-      // 处理结果，只保留成功的结果
-      myProjects.value = projectsWithProgress
-        .filter(result => result.status === 'fulfilled')
-        .map(result => result.value)
-      
+      myProjects.value = projects
       console.log(`✅ 成功加载 ${myProjects.value.length} 个我的项目（包含进度信息）`)
-      ElMessage.success(`成功加载 ${myProjects.value.length} 个我的项目`)
+      
+      // 显示详细信息
+      myProjects.value.forEach((project, index) => {
+        console.log(`\n📁 项目 ${index + 1} 详情:`)
+        console.log(`  - ID: ${project.id}`)
+        console.log(`  - 名称: ${project.name}`)
+        console.log(`  - 企业: ${project.company}`)
+        console.log(`  - 类型: ${project.type}`)
+        console.log(`  - 难度: ${project.difficulty}`)
+        console.log(`  - 学分: ${project.credits}`)
+        console.log(`  - 申请状态: ${project.applicationStatus}`)
+        console.log(`  - 参与状态: ${project.participationStatus}`)
+        console.log(`  - 进度: ${project.progress ? project.progress.percentage + '%' : '无'}`)
+      })
+      
+      // 更新统计数据
+      updateMyProjectsStats(projects)
+      
     } else {
-      console.log('📝 暂无我的项目数据')
+      console.log('📝 响应格式异常或无数据')
       myProjects.value = []
-      ElMessage.info('暂无我的项目')
+      ElMessage.info('暂无我的项目数据')
     }
   } catch (error) {
     console.error('❌ 加载我的项目失败:', error)
+    console.error('错误详情:', {
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data
+    })
+    
+    // 根据错误类型给出具体提示
+    let errorMessage = '加载我的项目失败'
+    if (error.response?.status === 401) {
+      errorMessage = '登录已过期，请重新登录'
+    } else if (error.response?.status === 403) {
+      errorMessage = '权限不足，无法获取项目信息'
+    } else if (error.response?.status === 500) {
+      errorMessage = '服务器错误，请稍后重试'
+    } else if (error.message) {
+      errorMessage = `加载失败：${error.message}`
+    }
+    
     myProjects.value = []
-    ElMessage.error('加载我的项目失败：' + (error.message || '未知错误'))
+    ElMessage.error(errorMessage)
   } finally {
     loading.value = false
   }
+}
+
+// 映射申请状态到显示状态
+const mapApplicationStatus = (applicationStatus, participationStatus) => {
+  if (participationStatus === '运行中') {
+    return '进行中'
+  }
+  
+  switch (applicationStatus) {
+    case '已通过':
+      return '已通过'
+    case '待审核':
+      return '待审核'
+    case '已拒绝':
+      return '已拒绝'
+    case '申请中':
+      return '申请中'
+    default:
+      return '待审核'
+  }
+}
+
+// 根据项目类型获取默认技能
+const getDefaultSkills = (projectType) => {
+  const skillMap = {
+    'Web开发': ['Vue.js', 'JavaScript', 'CSS', 'HTML'],
+    '移动开发': ['React Native', 'JavaScript', 'Mobile'],
+    '数据分析': ['Python', 'Pandas', 'NumPy', 'Matplotlib'],
+    '人工智能': ['Python', 'TensorFlow', 'Machine Learning'],
+    '系统开发': ['Java', 'Spring Boot', 'Database'],
+    '数据分析': ['Python', 'SQL', 'Excel', 'Tableau']
+  }
+  
+  return skillMap[projectType] || ['通用技能']
+}
+
+// 更新我的项目统计数据
+const updateMyProjectsStats = async (projects) => {
+  const pendingProjects = projects.filter(p => 
+    p.applicationStatus === '待审核'
+  ).length
+  
+  const applyingProjects = projects.filter(p => 
+    p.applicationStatus === '申请中'
+  ).length
+  
+  // 已报名项目 = 只计算已通过审核的项目
+  const appliedProjects = projects.filter(p => 
+    p.applicationStatus === '已通过' || p.participationStatus === '运行中'
+  ).length
+  
+  const activeProjects = projects.filter(p => 
+    p.participationStatus === '运行中'
+  ).length
+  
+  const completedProjects = projects.filter(p => 
+    p.participationStatus === '已完成' || p.progress?.percentage >= 100
+  ).length
+  
+  // 正在进行的项目 = 已通过审核但未完成的项目
+  const ongoingProjects = projects.filter(p => 
+    (p.applicationStatus === '已通过' || p.participationStatus === '运行中') && 
+    p.participationStatus !== '已完成' && 
+    (p.progress?.percentage || 0) < 100
+  ).length
+  
+  const creditsEarned = projects
+    .filter(p => p.participationStatus === '运行中' || p.participationStatus === '已完成')
+    .reduce((total, project) => total + (project.credits || 0), 0)
+  
+  // 获取可报名项目数量（从全部项目API）
+  let availableProjects = '0'
+  try {
+    const allProjectsResponse = await projectApi.getProjects()
+    if (allProjectsResponse && allProjectsResponse.data) {
+      let allProjects = []
+      if (Array.isArray(allProjectsResponse.data)) {
+        allProjects = allProjectsResponse.data
+      } else if (allProjectsResponse.data.list && Array.isArray(allProjectsResponse.data.list)) {
+        allProjects = allProjectsResponse.data.list
+      }
+      
+      // 统计可报名的项目
+      availableProjects = allProjects.filter(p => 
+        p.status === '可报名' && 
+        p.enrolled < p.capacity
+      ).length.toString()
+      
+      console.log(`📊 从全部项目获取到 ${availableProjects} 个可报名项目`)
+    }
+  } catch (error) {
+    console.warn('⚠️ 获取可报名项目数量失败，使用本地计算:', error)
+    // 如果API失败，使用当前数据计算
+    availableProjects = allProjects.value.filter(p => 
+      p.status === '可报名' && 
+      p.enrolled < p.capacity
+    ).length.toString()
+  }
+  
+  // 更新统计信息，保持图标配置不变
+  statistics.value[0] = {
+    ...statistics.value[0],
+    value: availableProjects.toString()      // 可报名项目
+  }
+  statistics.value[1] = {
+    ...statistics.value[1],
+    value: pendingProjects.toString()  // 待审核
+  }
+  statistics.value[2] = {
+    ...statistics.value[2],
+    value: ongoingProjects.toString()  // 正在进行的项目
+  }
+  statistics.value[3] = {
+    ...statistics.value[3],
+    value: creditsEarned.toString()  // 获得学分
+  }
+  
+  console.log('📊 统计数据更新:', {
+    可报名项目: availableProjects,
+    已申请项目: appliedProjects,
+    待审核: pendingProjects,
+    正在进行的项目: ongoingProjects,
+    已完成项目: completedProjects,
+    获得学分: creditsEarned
+  })
 }
 
 // 获取用户信息
@@ -889,6 +1084,8 @@ const handleApplyFromDetail = () => {
   }
 }
 
+
+
 const handleSizeChange = (val) => {
   pageSize.value = val
   currentPage.value = 1
@@ -911,9 +1108,21 @@ const getStatusType = (status) => {
   const map = {
     '可报名': 'success',
     '进行中': 'warning',
-    '已结束': 'info'
+    '已结束': 'info',
+    '待审核': 'warning',
+    '已通过': 'success',
+    '已拒绝': 'danger',
+    '申请中': 'info',
+    '运行中': 'warning'
   }
   return map[status] || 'info'
+}
+
+// 获取进度条状态
+const getProgressStatus = (percentage) => {
+  if (percentage >= 100) return 'success'
+  if (percentage >= 80) return 'warning'
+  return 'normal'
 }
 
 // 验证项目报名条件
@@ -1100,33 +1309,7 @@ const handleApplicationError = (error) => {
   ElMessage.error(errorMessage)
 }
 
-// 验证项目删除条件
-const validateProjectDeletion = (project) => {
-  console.log('🔍 验证项目删除条件:', project)
-  
-  if (!project) {
-    ElMessage.error('未选择项目')
-    return false
-  }
 
-  // 检查项目状态 - 某些状态下可能不允许删除报名
-  const deletableStatuses = ['可报名', '申请中', '已报名']
-  if (project.status && !deletableStatuses.includes(project.status)) {
-    const statusMap = {
-      '进行中': '项目已开始，无法删除报名',
-      '已结束': '项目已结束，无法删除报名',
-      '已完成': '项目已完成，无法删除报名'
-    }
-    const message = statusMap[project.status] || `项目状态为"${project.status}"，无法删除报名`
-    ElMessage.warning(message)
-    return false
-  }
-
-  console.log('✅ 项目删除条件验证通过')
-  return true
-}
-
-// 删除项目报名
 // 刷新单个项目的进度
 const handleRefreshProgress = async (project) => {
   try {
@@ -1155,241 +1338,115 @@ const handleRefreshProgress = async (project) => {
   }
 }
 
-const handleDeleteProject = async (project) => {
+// 取消项目报名
+const handleCancelApplication = async (project) => {
   try {
-    // 检查项目状态是否允许删除报名
-    if (!validateProjectDeletion(project)) {
-      return
-    }
-
     // 确认对话框
     await ElMessageBox.confirm(
-      `确定要删除报名「${project.name}」吗？删除后将无法恢复。`,
-      '确认删除',
+      `确定要取消报名项目"${project.name}"吗？取消后将无法恢复。`,
+      '确认取消报名',
       {
-        confirmButtonText: '确定删除',
-        cancelButtonText: '取消',
+        confirmButtonText: '确定取消',
+        cancelButtonText: '保留报名',
         type: 'warning',
         confirmButtonClass: 'el-button--danger'
       }
     )
-
-    // 开始删除
-    deleting.value = true
-    deletingProjectId.value = project.id
-
-    console.log(`🗑️ 正在删除项目报名: ${project.name} (ID: ${project.id})`)
-    console.log('📋 项目完整信息:', project)
     
-    // 检查当前用户信息
-    try {
-      const userInfo = await getUserInfo()
-      console.log('👤 当前用户信息:', userInfo)
-    } catch (userError) {
-      console.warn('⚠️ 获取用户信息失败:', userError.message)
+    cancellingApplication.value = true
+    cancellingProjectId.value = project.id
+    
+    console.log(`❌ 正在取消项目报名: ${project.name}`)
+    console.log(`📋 项目ID: ${project.id}`)
+    console.log(`📋 申请ID: ${project.applicationId }`)
+    
+    let response
+    
+    // 暂时使用兼容方法，通过项目ID取消报名
+    // 如果后端支持新的API端点，可以取消下面的注释
+    /*
+    if (project.applicationId && project.applicationId !== project.id) {
+      console.log(`🎯 使用申请ID取消报名: ${project.applicationId}`)
+      response = await projectApi.cancelApplication(project.id, project.applicationId)
+    } else {
+      console.log(`⚠️ 申请ID与项目ID相同或未找到，使用项目ID取消报名`)
+    */
+    console.log(`🎯 使用项目ID取消报名: ${project.id}`)
+    response = await projectApi.cancelApplicationByProject(project.id)
+    
+    console.log(`✅ 取消报名响应:`, response)
+    
+    // 从我的项目列表中移除该项目
+    const projectIndex = myProjects.value.findIndex(p => p.id === project.id)
+    if (projectIndex !== -1) {
+      myProjects.value.splice(projectIndex, 1)
+      console.log(`✅ 项目 ${project.id} 已从列表中移除`)
     }
-
-    // 检查项目状态和属性
-    console.log('🔍 删除前检查:', {
-      projectId: project.id,
-      projectName: project.name,
-      projectStatus: project.status,
-      enrolled: project.enrolled,
-      capacity: project.capacity,
-      canDelete: validateProjectDeletion(project),
-      // 检查可能的时间相关字段
-      startTime: project.startTime || project.startDate,
-      endTime: project.endTime || project.endDate,
-      applicationTime: project.applicationTime || project.enrollmentTime,
-      currentTime: new Date().toISOString()
-    })
-
-    // 调用删除API
-    const response = await projectApi.cancelProjectApplication(project.id)
-    console.log('🗑️ 删除项目报名响应:', response)
-    console.log('📊 响应详细信息:', {
-      code: response?.code,
-      message: response?.message,
-      data: response?.data,
-      errors: response?.errors
-    })
-
-    // 处理删除成功
+    
+    // 更新统计数据
+    updateMyProjectsStats(myProjects.value)
+    
+    // 刷新全部项目数据，确保该项目重新变为可报名状态
+    await refreshProjectData()
+    
     ElMessage({
-      message: '✅ 删除报名成功！',
+      message: '✅ 取消报名成功',
       type: 'success',
       duration: 3000
     })
-
-    // 从我的项目列表中移除该项目
-    const index = myProjects.value.findIndex(p => p.id === project.id)
-    if (index > -1) {
-      myProjects.value.splice(index, 1)
-    }
-
-    // 如果当前是在全部项目模式下，更新对应项目的报名人数
-    if (!showMyProjects.value) {
-      const allProjectIndex = allProjects.value.findIndex(p => p.id === project.id)
-      if (allProjectIndex > -1) {
-        allProjects.value[allProjectIndex].enrolled = Math.max(0, allProjects.value[allProjectIndex].enrolled - 1)
-      }
-    }
-
-    // 刷新统计数据
-    fetchProjectStats()
-
+    
   } catch (error) {
-    // 用户取消删除不显示错误消息
+    // 用户取消确认对话框
     if (error === 'cancel') {
-      console.log('👤 用户取消删除操作')
+      console.log('👤 用户取消了报名操作')
       return
     }
-
-    console.error('❌ 删除项目报名失败:', error)
-    console.error('错误详情:', error.response?.data)
-
-    // 使用调试工具分析错误
-    if (window.debug400Error) {
-      window.debug400Error.logErrorDetails(error, project)
-      window.debug400Error.analyzePossibleCauses(project)
-      window.debug400Error.generateDebugReport(error, project)
+    
+    console.error(`❌ 取消项目报名失败:`, error)
+    
+    // 处理不同类型的错误
+    let errorMessage = '取消报名失败，请稍后重试'
+    
+    if (error.response) {
+      const status = error.response.status
+      const data = error.response.data
       
-      // 尝试自动修复
-      if (error.response?.status === 400) {
-        window.debug400Error.attemptFixes(project)
+      switch (status) {
+        case 400:
+          errorMessage = data?.message || '请求参数错误'
+          break
+        case 401:
+          errorMessage = '登录已过期，请重新登录'
+          break
+        case 403:
+          errorMessage = data?.message || '权限不足，无法取消报名'
+          break
+        case 404:
+          errorMessage = '项目或申请不存在，请刷新页面后重试'
+          break
+        case 409:
+          errorMessage = data?.message || '申请状态不允许取消'
+          break
+        case 500:
+          errorMessage = '服务器内部错误，请稍后重试'
+          break
+        default:
+          errorMessage = data?.message || `取消报名失败 (错误码: ${status})`
       }
+    } else if (error.message) {
+      errorMessage = `网络错误：${error.message}`
     }
-
-    // 网络错误处理
-    if (!error.response) {
-      ElMessage.error('网络连接失败，请检查网络后重试')
-      return
-    }
-
-    // HTTP状态码处理
-    const status = error.response.status
-    const data = error.response.data
-
-    let errorMessage = '删除报名失败，请稍后重试'
-    let shouldRefresh = false
-
-    switch (status) {
-      case 400:
-        // 尝试从多个来源获取错误信息
-        let errorDetails = []
-        
-        // 从主message获取
-        if (data?.message) {
-          errorDetails.push(data.message)
-        }
-        
-        // 从errors对象获取详细信息
-        if (data?.errors && typeof data.errors === 'object') {
-          Object.entries(data.errors).forEach(([key, value]) => {
-            if (value && typeof value === 'string') {
-              errorDetails.push(`${key}: ${value}`)
-            } else if (value && value.message) {
-              errorDetails.push(`${key}: ${value.message}`)
-            }
-          })
-        }
-        
-        // 合并错误信息
-        errorMessage = errorDetails.join('\n') || '请求参数错误'
-        
-        // 根据错误内容提供针对性建议
-        const errorText = errorMessage.toLowerCase()
-        if (errorText.includes('已开始') || errorText.includes('进行中') || errorText.includes('started')) {
-          errorMessage += '\n\n💡 项目已开始，请联系管理员处理'
-        } else if (errorText.includes('已结束') || errorText.includes('已完成') || errorText.includes('ended') || errorText.includes('completed')) {
-          errorMessage += '\n\n💡 项目已结束，无法删除报名记录'
-        } else if (errorText.includes('不存在') || errorText.includes('无效') || errorText.includes('not found') || errorText.includes('invalid')) {
-          errorMessage += '\n\n💡 建议刷新页面后重试'
-          shouldRefresh = true
-        } else if (errorText.includes('已满') || errorText.includes('full') || errorText.includes('capacity')) {
-          errorMessage += '\n\n💡 项目人数已满，请联系管理员'
-        } else if (errorText.includes('重复') || errorText.includes('duplicate') || errorText.includes('already')) {
-          errorMessage += '\n\n💡 操作重复，请刷新页面查看最新状态'
-          shouldRefresh = true
-        } else {
-          errorMessage += '\n\n💡 请检查项目状态或联系技术支持'
-        }
-        
-        console.log('🔍 400错误详细信息:', {
-          message: data?.message,
-          errors: data?.errors,
-          fullData: data,
-          projectId: project.id,
-          projectStatus: project.status,
-          enrollmentInfo: {
-            enrolled: project.enrolled,
-            capacity: project.capacity,
-            applicationTime: project.applicationTime,
-            applicationStatus: project.applicationStatus
-          }
-        })
-        
-        // 尝试解析errors对象的具体内容
-        if (data?.errors && typeof data.errors === 'object') {
-          console.log('🔍 Errors对象详情:', Object.keys(data.errors))
-          Object.entries(data.errors).forEach(([key, value]) => {
-            console.log(`   ${key}:`, value)
-          })
-        }
-        break
-      case 401:
-        errorMessage = '登录已过期，请重新登录后重试'
-        break
-      case 403:
-        errorMessage = data?.message || '权限不足，无法删除该报名\n\n💡 请确认您有权限删除此项目的报名'
-        break
-      case 404:
-        errorMessage = '项目报名不存在，请刷新页面后重试\n\n💡 该报名可能已被删除'
-        shouldRefresh = true
-        break
-      case 409:
-        errorMessage = data?.message || '项目状态不允许删除报名\n\n💡 项目可能已开始或结束'
-        break
-      case 500:
-        errorMessage = '服务器内部错误，请稍后重试\n\n💡 如问题持续，请联系技术支持'
-        break
-      default:
-        errorMessage = `${data?.message || data?.errors?.message || `删除失败 (错误码: ${status})`}\n\n💡 请稍后重试或联系技术支持`
-    }
-
-    // 显示错误消息
-    ElMessage.error({
-      message: errorMessage,
-      duration: 5000,
-      showClose: true
-    })
-
-    // 如果需要刷新页面，给出提示
-    if (shouldRefresh) {
-      setTimeout(() => {
-        ElMessageBox.confirm(
-          '检测到数据可能已过期，是否刷新页面获取最新数据？',
-          '刷新数据',
-          {
-            confirmButtonText: '刷新页面',
-            cancelButtonText: '稍后处理',
-            type: 'info'
-          }
-        ).then(() => {
-          window.location.reload()
-        }).catch(() => {
-          // 用户选择稍后处理
-        })
-      }, 1000)
-    }
-
-    return // 避免重复显示错误消息
-
+    
+    ElMessage.error(errorMessage)
   } finally {
-    deleting.value = false
-    deletingProjectId.value = null
+    cancellingApplication.value = false
+    cancellingProjectId.value = null
   }
 }
+
+
+
+
 
 // 获取项目统计数据
 const fetchProjectStats = async () => {
@@ -1414,10 +1471,23 @@ const fetchProjectStats = async () => {
 const updateStatistics = (data) => {
   const statsData = data.data || data // 兼容不同的数据格式
   
-  statistics.value[0].value = statsData.availableProjects || 0
-  statistics.value[1].value = statsData.appliedProjects || 0
-  statistics.value[2].value = statsData.completedProjects || 0
-  statistics.value[3].value = statsData.creditsEarned || 0
+  // 确保图标配置不被覆盖
+  statistics.value[0] = {
+    ...statistics.value[0],
+    value: (statsData.availableProjects || 0).toString()
+  }
+  statistics.value[1] = {
+    ...statistics.value[1],
+    value: (statsData.pendingProjects || 0).toString()
+  }
+  statistics.value[2] = {
+    ...statistics.value[2],
+    value: (statsData.ongoingProjects || 0).toString()
+  }
+  statistics.value[3] = {
+    ...statistics.value[3],
+    value: (statsData.creditsEarned || 0).toString()
+  }
   
   console.log('📊 统计数据已更新:', statistics.value)
 }
@@ -1425,33 +1495,73 @@ const updateStatistics = (data) => {
 // 本地计算统计数据（作为备选方案）
 const calculateLocalStats = () => {
   // 基于当前项目数据计算统计信息
-  // 注意：如果使用的是 getMyProjects，则数据本身就是用户相关的
   
-  const availableProjects = allProjects.value.filter(p => p.status === '可报名').length
-  const appliedProjects = allProjects.value.filter(p => 
-    p.status === '已报名' || p.status === '申请中' || p.applied === true
+  const availableProjects = allProjects.value.filter(p => 
+    p.status === '可报名' && 
+    p.enrolled < p.capacity  // 确保还有名额
   ).length
-  const completedProjects = allProjects.value.filter(p => p.status === '已结束' || p.completed === true).length
-  const inProgressProjects = allProjects.value.filter(p => p.status === '进行中').length
   
-  // 计算学分（假设每个完成的项目获得对应的学分）
-  const creditsEarned = allProjects.value
-    .filter(p => p.status === '已结束' || p.completed === true)
-    .reduce((total, project) => total + (project.credits || 1), 0)
+  // 从我的项目数据中计算
+  const pendingProjects = myProjects.value.filter(p => 
+    p.applicationStatus === '待审核'
+  ).length
   
-  // 更新统计显示
-  statistics.value[0].value = availableProjects.toString()
-  statistics.value[1].value = appliedProjects.toString() 
-  statistics.value[2].value = completedProjects.toString()
-  statistics.value[3].value = creditsEarned.toString()
+  const applyingProjects = myProjects.value.filter(p => 
+    p.applicationStatus === '申请中'
+  ).length
+  
+  // 已报名项目 = 只计算已通过审核的项目
+  const appliedProjects = myProjects.value.filter(p => 
+    p.applicationStatus === '已通过' || p.participationStatus === '运行中'
+  ).length
+  
+  const activeProjects = myProjects.value.filter(p => 
+    p.participationStatus === '运行中'
+  ).length
+  
+  const completedProjects = myProjects.value.filter(p => 
+    p.participationStatus === '已完成' || p.progress?.percentage >= 100
+  ).length
+  
+  // 正在进行的项目 = 已通过审核但未完成的项目
+  const ongoingProjects = myProjects.value.filter(p => 
+    (p.applicationStatus === '已通过' || p.participationStatus === '运行中') && 
+    p.participationStatus !== '已完成' && 
+    (p.progress?.percentage || 0) < 100
+  ).length
+  
+  // 计算学分（从已参与的项目中获得）
+  const creditsEarned = myProjects.value
+    .filter(p => p.participationStatus === '运行中' || p.participationStatus === '已完成')
+    .reduce((total, project) => total + (project.credits || 0), 0)
+  
+  // 更新统计显示，保持图标配置不变
+  statistics.value[0] = {
+    ...statistics.value[0],
+    value: availableProjects.toString()  // 可报名项目
+  }
+  statistics.value[1] = {
+    ...statistics.value[1],
+    value: pendingProjects.toString()     // 待审核
+  }
+  statistics.value[2] = {
+    ...statistics.value[2],
+    value: ongoingProjects.toString()      // 正在进行的项目
+  }
+  statistics.value[3] = {
+    ...statistics.value[3],
+    value: creditsEarned.toString()      // 获得学分
+  }
   
   console.log('📊 本地统计数据计算完成:', {
     可报名项目: availableProjects,
-    已报名项目: appliedProjects,
+    已申请项目: appliedProjects,
+    待审核: pendingProjects,
+    正在进行的项目: ongoingProjects,
     已完成项目: completedProjects,
-    进行中项目: inProgressProjects,
     获得学分: creditsEarned,
-    总项目数: allProjects.value.length
+    全部项目数: allProjects.value.length,
+    我的项目数: myProjects.value.length
   })
 }
 
@@ -1506,7 +1616,7 @@ const refreshProjectData = async () => {
         }
         console.log(`✅ 成功加载 ${allProjects.value.length} 个全部项目`)
       } else {
-        console.log('📝 后端暂无全部项目数据，继续使用本地mock数据')
+        console.log('📝 后端暂无全部项目数据')
       }
     }
     
@@ -1515,17 +1625,51 @@ const refreshProjectData = async () => {
       console.log('📊 返回的数据结构:', response.data)
     }
   } catch (error) {
-    console.warn('⚠️ 刷新项目数据失败，继续使用本地数据:', error)
-    // 即使刷新失败也不影响用户体验，继续使用本地数据
+    console.warn('⚠️ 刷新项目数据失败:', error)
+    // 即使刷新失败也不影响用户体验
   }
 }
 
 // 初始化数据
 const initializeData = async () => {
+  // 检查并设置Token（开发环境下）
+  await ensureValidToken()
+  
+  // 默认显示我的项目
+  showMyProjects.value = true
   await Promise.all([
     fetchProjectStats(), // 获取统计数据
-    refreshProjectData() // 刷新项目数据
+    loadMyProjects()    // 加载我的项目
   ])
+}
+
+// 确保有有效的Token
+const ensureValidToken = async () => {
+  try {
+    const token = localStorage.getItem('token')
+    if (!token) {
+      console.log('⚠️ 未找到Token，尝试设置测试Token...')
+      // 设置测试Token（用于开发环境）
+      const testToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMDEwIiwidXNlcm5hbWUiOiJjeGsiLCJpYXQiOjE3NjUyNDI5NjEsImV4cCI6MTc2NTI0NjU2MX0.RnwazyycvVqTPUhey0kCdpQn_r7OgIdxxl4I89dFJp4'
+      localStorage.setItem('token', testToken)
+      console.log('✅ 已设置测试Token')
+      
+      // 同时设置用户信息
+      const testUserInfo = {
+        id: 1010,
+        username: 'cxk',
+        studentId: '22222',
+        email: '22222@qq.com',
+        name: 'cxk'
+      }
+      localStorage.setItem('userInfo', JSON.stringify(testUserInfo))
+      console.log('✅ 已设置测试用户信息')
+    } else {
+      console.log('✅ Token已存在:', token.substring(0, 20) + '...')
+    }
+  } catch (error) {
+    console.error('❌ 设置Token失败:', error)
+  }
 }
 
 // 组件挂载时初始化数据
@@ -1579,35 +1723,55 @@ onMounted(() => {
 
     .stat-card {
       border: none;
+      transition: all 0.3s;
+
+      &.stat-card-clickable {
+        cursor: pointer;
+        
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+      }
 
       .stat-content {
         display: flex;
         align-items: center;
-        gap: 16px;
+        gap: 12px;
+        padding: 4px;
 
         .stat-icon {
-          width: 56px;
-          height: 56px;
-          border-radius: 12px;
+          width: 48px;
+          height: 48px;
+          border-radius: 10px;
           display: flex;
           align-items: center;
           justify-content: center;
           color: white;
+          flex-shrink: 0;
         }
 
         .stat-info {
           flex: 1;
+          min-width: 0;
 
           .stat-value {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 700;
             color: $text-primary;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
           }
 
           .stat-label {
-            font-size: 14px;
+            font-size: 12px;
             color: $text-secondary;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.2;
           }
         }
       }
@@ -1758,6 +1922,7 @@ onMounted(() => {
           display: flex;
           gap: 8px;
         }
+
       }
     }
   }
@@ -1793,6 +1958,34 @@ onMounted(() => {
 
 @media (max-width: 768px) {
   .project-training-container {
+    .stats-row {
+      .stat-card {
+        .stat-content {
+          gap: 8px;
+          padding: 8px;
+
+          .stat-icon {
+            width: 40px;
+            height: 40px;
+
+            .el-icon {
+              font-size: 20px;
+            }
+          }
+
+          .stat-info {
+            .stat-value {
+              font-size: 18px;
+            }
+
+            .stat-label {
+              font-size: 11px;
+            }
+          }
+        }
+      }
+    }
+
     .page-header {
       .header-content {
         flex-direction: column;
@@ -1811,6 +2004,38 @@ onMounted(() => {
 
     .projects-grid {
       grid-template-columns: 1fr;
+    }
+  }
+}
+
+@media (max-width: 1200px) and (min-width: 769px) {
+  .project-training-container {
+    .stats-row {
+      .stat-card {
+        .stat-content {
+          gap: 10px;
+          padding: 6px;
+
+          .stat-icon {
+            width: 44px;
+            height: 44px;
+
+            .el-icon {
+              font-size: 22px;
+            }
+          }
+
+          .stat-info {
+            .stat-value {
+              font-size: 19px;
+            }
+
+            .stat-label {
+              font-size: 11px;
+            }
+          }
+        }
+      }
     }
   }
 }

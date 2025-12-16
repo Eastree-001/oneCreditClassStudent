@@ -105,12 +105,18 @@ const getInitialToken = async () => {
 // 请求拦截器
 request.interceptors.request.use(
   async (config) => {
+    // 如果是FormData，不要设置Content-Type，让浏览器自动设置
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type']
+    }
+    
     // 打印请求信息
     console.log('发送请求:', {
       url: config.baseURL + config.url,
       method: config.method,
-      data: config.data,
-      headers: config.headers
+      data: config.data instanceof FormData ? 'FormData (文件数据)' : config.data,
+      headers: config.headers,
+      contentType: config.headers['Content-Type']
     })
     
     let token = localStorage.getItem('token')

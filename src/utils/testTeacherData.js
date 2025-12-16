@@ -3,6 +3,8 @@
  * 验证教师信息是否从后端数据库正确获取
  */
 
+import { BASE_URL } from '../config/api.js'
+
 // 由于这是ES模块环境，我们使用简化的测试逻辑
 // 实际使用中会在Vue组件中通过import方式导入tokenManager
 
@@ -18,7 +20,7 @@ async function testRecommendedCoursesTeacherData() {
     
     // 2. 模拟调用推荐课程API
     console.log('📡 模拟调用推荐课程API: /courses/recommended')
-    console.log('🌐 请求URL: http://192.168.1.165:8082/api/courses/recommended')
+    console.log('🌐 请求URL:', `${BASE_URL}/api/courses/recommended`)
     
     // 模拟后端返回的数据结构（包含教师字段）
     const mockRecommendedResponse = {
