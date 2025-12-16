@@ -18,7 +18,7 @@ async function testRecommendedCoursesTeacherData() {
     
     // 2. 模拟调用推荐课程API
     console.log('📡 模拟调用推荐课程API: /courses/recommended')
-    console.log('🌐 请求URL: http://192.168.1.165:8082/api/courses/recommended')
+    console.log('🌐 请求URL: http://192.168.1.134:8082/api/courses/recommended')
     
     // 模拟后端返回的数据结构（包含教师字段）
     const mockRecommendedResponse = {

@@ -561,6 +561,20 @@ const loadCourses = async () => {
   } catch (error) {
     console.error('❌ 获取课程列表失败:', error)
     allCourses.value = []
+    
+    // 添加用户友好的错误提示
+    if (error.response?.status === 500) {
+      console.warn('⚠️ 服务器内部错误，可能的原因：')
+      console.warn('1. 后端服务未启动或异常')
+      console.warn('2. 数据库连接问题') 
+      console.warn('3. API接口不存在')
+      console.warn('请检查服务器状态：http://192.168.1.134:8082')
+    } else if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
+      console.warn('⚠️ 无法连接到服务器，请检查：')
+      console.warn('1. 服务器IP地址是否正确：192.168.1.134')
+      console.warn('2. 服务器端口是否开放：8082')
+      console.warn('3. 网络连接是否正常')
+    }
   } finally {
     coursesLoading.value = false
   }
@@ -778,7 +792,7 @@ const handleConfirmSelection = async () => {
     const courseIds = selectedCourses.value.map(course => course.id)
     
     console.log('📚 确认选课，课程IDs:', courseIds)
-    console.log('请求URL:', 'http://192.168.1.165:8082/api/courses/confirm-selection')
+    console.log('请求URL:', 'http://192.168.1.134:8082/api/courses/confirm-selection')
     console.log('提交数据:', { courseIds })
     
     const response = await courseApi.confirmSelection(courseIds)
@@ -1014,7 +1028,7 @@ const refreshRecommendations = async () => {
   recommendationsLoading.value = true
   try {
     console.log('🌟 获取推荐课程...')
-    console.log('请求URL: http://192.168.1.165:8082/api/courses/recommended')
+    console.log('请求URL: http://192.168.1.134:8082/api/courses/recommended')
     
     // 使用tokenManager检查token状态
     const { tokenManager } = await import('@/utils/tokenManager')

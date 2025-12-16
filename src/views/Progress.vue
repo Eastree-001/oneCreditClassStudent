@@ -611,7 +611,7 @@ const handleContinue = (courseId) => {
 const handleViewDetail = async (courseId) => {
   try {
     console.log('🔍 获取课程详情，课程ID:', courseId)
-    console.log('请求URL:', `http://192.168.1.165:8082/api/progress/courses/${courseId}`)
+    console.log('请求URL:', `http://192.168.1.134:8082/api/progress/courses/${courseId}`)
     
     courseDetailLoading.value = true
     currentCourseDetail.value = null
@@ -738,7 +738,7 @@ const handleSubmitAssignment = async () => {
   try {
     submitLoading.value = true
     console.log('📤 提交作业，作业ID:', currentAssignment.value.id)
-    console.log('请求URL:', `http://192.168.1.165:8082/api/progress/assignments/${currentAssignment.value.id}/submit`)
+    console.log('请求URL:', `http://192.168.1.134:8082/api/progress/assignments/${currentAssignment.value.id}/submit`)
     console.log('提交数据:', submitForm.value)
     
     const submitData = {
@@ -1060,7 +1060,7 @@ const handleTabChange = (tab) => {
 const fetchProgressStats = async () => {
   try {
     console.log('📊 获取学习进度统计数据...')
-    console.log('请求URL: http://192.168.1.165:8082/api/progress/stats')
+    console.log('请求URL: http://192.168.1.134:8082/api/progress/stats')
     
     const response = await userApi.getProgressStats()
     console.log('📝 学习进度统计响应:', response)
@@ -1191,7 +1191,7 @@ const getDefaultCoursesData = () => {
 const fetchProgressCourses = async () => {
   try {
     console.log('📚 获取已选择课程列表...')
-    console.log('请求URL: http://192.168.1.165:8082/api/courses/selected')
+    console.log('请求URL: http://192.168.1.134:8082/api/courses/selected')
     console.log('📚 获取前courses.value:', courses.value)
     
     const response = await userApi.getSelectedCourses()
@@ -1280,7 +1280,7 @@ const fetchProgressCourses = async () => {
 const fetchCreditsTrend = async () => {
   try {
     console.log('📈 获取学分获取趋势数据...')
-    console.log('请求URL: http://192.168.1.165:8082/api/progress/credits-trend')
+    console.log('请求URL: http://192.168.1.134:8082/api/progress/credits-trend')
     
     const response = await userApi.getCreditsTrend()
     console.log('📝 学分趋势响应:', response)
@@ -1329,7 +1329,7 @@ const fetchCreditsTrend = async () => {
 const fetchTimeDistribution = async () => {
   try {
     console.log('⏰ 获取学习时长分布数据...')
-    console.log('请求URL: http://192.168.1.165:8082/api/progress/time-distribution')
+    console.log('请求URL: http://192.168.1.134:8082/api/progress/time-distribution')
     
     const response = await userApi.getTimeDistribution()
     console.log('📝 学习时长分布响应:', response)
@@ -1381,7 +1381,7 @@ const fetchTimeDistribution = async () => {
 const fetchAssignments = async () => {
   try {
     console.log('📋 获取作业列表数据...')
-    console.log('请求URL: http://192.168.1.165:8082/api/progress/assignments')
+    console.log('请求URL: http://192.168.1.134:8082/api/progress/assignments')
     
     const response = await userApi.getAssignments()
     console.log('📝 作业列表响应:', response)
@@ -1497,7 +1497,7 @@ const fetchAssignments = async () => {
 const fetchExams = async () => {
   try {
     console.log('📝 获取考试列表数据...')
-    console.log('请求URL: http://192.168.1.165:8082/api/progress/exams')
+    console.log('请求URL: http://192.168.1.134:8082/api/progress/exams')
     
     const response = await userApi.getExams()
     console.log('📝 考试列表响应:', response)
