@@ -1,4 +1,4 @@
-import request from '@/utils/request'
+import request, { noTokenRequest } from '@/utils/request'
 
 // 用户相关API
 export const userApi = {
@@ -7,6 +7,16 @@ export const userApi = {
     return request.post('/auth/login', data)
   },
   
+  // 发送验证码
+  sendVerification(data) {
+    return noTokenRequest.post('/auth/send-verification', data)
+  },
+
+  // 发送重置密码验证码
+  sendResetCode(data) {
+    return noTokenRequest.post('/auth/send-reset-code', data)
+  },
+
   // 用户注册
   register(data) {
     return request.post('/auth/register', data)
@@ -19,7 +29,7 @@ export const userApi = {
   
   // 重置密码
   resetPassword(data) {
-    return request.post('/auth/reset-password', data)
+    return noTokenRequest.post('/auth/reset-password-with-code', data)
   },
   
   // 获取待办事项
