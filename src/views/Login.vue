@@ -159,12 +159,22 @@
               </el-form-item>
 
               <el-form-item prop="universityName">
-                <el-input
+                <el-select
                   v-model="registerForm.universityName"
-                  placeholder="请输入高校名称"
+                  placeholder="请选择高校"
                   size="large"
                   :prefix-icon="School"
-                />
+                  filterable
+                  :loading="schoolsLoading"
+                  style="width: 100%;"
+                >
+                  <el-option
+                    v-for="school in schools"
+                    :key="school.id || school.universityName"
+                    :label="school.universityName || school"
+                    :value="school.universityName || school"
+                  />
+                </el-select>
               </el-form-item>
 
               <el-form-item prop="password">
@@ -217,7 +227,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -245,6 +255,8 @@ const registerLoading = ref(false)
 const verificationCodeLoading = ref(false)
 const verificationCountdown = ref(0)
 const canSendVerification = ref(false)
+const schoolsLoading = ref(false)
+const schools = ref([])
 
 const loginFormRef = ref(null)
 const registerFormRef = ref(null)
@@ -337,6 +349,46 @@ watch(() => registerForm.email, (newEmail) => {
   // 验证邮箱格式
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   canSendVerification.value = emailRegex.test(newEmail)
+})
+
+// 获取学校列表
+const fetchSchools = async () => {
+  schoolsLoading.value = true
+  try {
+    console.log('🏫 开始获取学校列表...')
+    const response = await userApi.getSchools()
+    console.log('🏫 学校列表响应:', response)
+    
+    // 处理响应数据
+    if (response && response.data) {
+      schools.value = response.data
+      console.log('✅ 学校列表获取成功:', schools.value)
+    } else if (Array.isArray(response)) {
+      schools.value = response
+      console.log('✅ 学校列表获取成功 (直接数组):', schools.value)
+    } else {
+      console.warn('⚠️ 学校列表响应格式异常:', response)
+      schools.value = []
+    }
+  } catch (error) {
+    console.error('❌ 获取学校列表失败:', error)
+    schools.value = []
+    // 如果获取失败，可以提供一些默认学校作为备选
+    schools.value = [
+      { id: 1, universityName: '清华大学' },
+      { id: 2, universityName: '北京大学' },
+      { id: 3, universityName: '复旦大学' },
+      { id: 4, universityName: '上海交通大学' },
+      { id: 5, universityName: '浙江大学' }
+    ]
+  } finally {
+    schoolsLoading.value = false
+  }
+}
+
+// 组件挂载时获取学校列表
+onMounted(() => {
+  fetchSchools()
 })
 
 // 发送验证码

@@ -1,4 +1,5 @@
 import request, { noTokenRequest } from '@/utils/request'
+import { API_IP, API_PORT } from '@/config/api'
 
 // 用户相关API
 export const userApi = {
@@ -222,5 +223,13 @@ export const userApi = {
   getRecommendedCourses() {
     console.log('👤 用户API调用推荐课程: /courses/recommended')
     return request.get('/courses/recommended')
+  },
+
+  // 获取学校列表
+  getSchools() {
+    console.log('🏫 获取学校列表: /api/common/schools')
+    // 使用完整的URL避免路径重复
+    const fullUrl = `http://${API_IP}:${API_PORT}/api/common/schools`
+    return noTokenRequest.get(fullUrl)
   }
 }
