@@ -1,9 +1,9 @@
 // API配置文件
 
 // API服务器IP地址常量 - 便于统一管理
-export const API_IP = '192.168.1.150'
+export const API_IP = '192.168.1.111'
 export const API_PORT = '8082'
-export const API_BASE_PATH = '/api'
+export const API_BASE_PATH = '/api/student'
 
 // 完整的基础URL
 export const BASE_URL = `http://${API_IP}:${API_PORT}${API_BASE_PATH}`
@@ -14,8 +14,10 @@ export const API_CONFIG = {
     // 认证相关
     LOGIN: '/auth/login',
     REGISTER: '/auth/register', 
+    SEND_VERIFICATION: '/auth/send-verification',
+    SEND_RESET_CODE: '/auth/send-reset-code',
     FORGOT_PASSWORD: '/auth/forgot-password',
-    RESET_PASSWORD: '/auth/reset-password',
+    RESET_PASSWORD: '/auth/reset-password-with-code',
     REFRESH_TOKEN: '/auth/refresh-token',
     
     // 课程相关

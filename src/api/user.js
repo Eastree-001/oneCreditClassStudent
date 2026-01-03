@@ -1,4 +1,5 @@
-import request from '@/utils/request'
+import request, { noTokenRequest } from '@/utils/request'
+import { API_IP, API_PORT } from '@/config/api'
 
 // 用户相关API
 export const userApi = {
@@ -7,6 +8,16 @@ export const userApi = {
     return request.post('/auth/login', data)
   },
   
+  // 发送验证码
+  sendVerification(data) {
+    return noTokenRequest.post('/auth/send-verification', data)
+  },
+
+  // 发送重置密码验证码
+  sendResetCode(data) {
+    return noTokenRequest.post('/auth/send-reset-code', data)
+  },
+
   // 用户注册
   register(data) {
     return request.post('/auth/register', data)
@@ -19,7 +30,7 @@ export const userApi = {
   
   // 重置密码
   resetPassword(data) {
-    return request.post('/auth/reset-password', data)
+    return noTokenRequest.post('/auth/reset-password-with-code', data)
   },
   
   // 获取待办事项
@@ -212,5 +223,13 @@ export const userApi = {
   getRecommendedCourses() {
     console.log('👤 用户API调用推荐课程: /courses/recommended')
     return request.get('/courses/recommended')
+  },
+
+  // 获取学校列表
+  getSchools() {
+    console.log('🏫 获取学校列表: /api/common/schools')
+    // 使用完整的URL避免路径重复
+    const fullUrl = `http://${API_IP}:${API_PORT}/api/common/schools`
+    return noTokenRequest.get(fullUrl)
   }
 }

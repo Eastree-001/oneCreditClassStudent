@@ -41,13 +41,36 @@
               :rules="resetRules"
               class="reset-form"
             >
-              <el-form-item prop="token" v-if="!token">
+              <el-form-item prop="email">
                 <el-input
-                  v-model="resetForm.token"
-                  placeholder="请输入重置令牌（从邮件中获取）"
+                  v-model="resetForm.email"
+                  placeholder="请输入邮箱地址"
                   size="large"
-                  :prefix-icon="Key"
+                  :prefix-icon="Message"
+                  :disabled="!!emailFromQuery"
                 />
+              </el-form-item>
+
+              <el-form-item prop="verificationCode">
+                <div style="display: flex; gap: 8px; width: 100%;">
+                  <el-input
+                    v-model="resetForm.verificationCode"
+                    placeholder="请输入邮箱验证码（6位数字）"
+                    size="large"
+                    :prefix-icon="Key"
+                    style="flex: 1;"
+                  />
+                  <el-button
+                    type="primary"
+                    size="large"
+                    :loading="verificationCodeLoading"
+                    :disabled="!canSendVerification || verificationCountdown > 0"
+                    @click="handleSendVerificationCode"
+                    style="flex-shrink: 0; min-width: 120px;"
+                  >
+                    {{ verificationCountdown > 0 ? `${verificationCountdown}s后重发` : '发送验证码' }}
+                  </el-button>
+                </div>
               </el-form-item>
 
               <el-form-item prop="password">
@@ -97,7 +120,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -115,11 +138,15 @@ const route = useRoute()
 
 const resetLoading = ref(false)
 const resetFormRef = ref(null)
-const token = ref('')
+const verificationCodeLoading = ref(false)
+const verificationCountdown = ref(0)
+const canSendVerification = ref(false)
+const emailFromQuery = ref('')
 
 // 重置密码表单
 const resetForm = reactive({
-  token: '',
+  email: '',
+  verificationCode: '',
   password: '',
   confirmPassword: ''
 })
@@ -135,8 +162,14 @@ const validateConfirmPassword = (rule, value, callback) => {
 
 // 重置密码表单验证规则
 const resetRules = {
-  token: [
-    { required: true, message: '请输入重置令牌', trigger: 'blur' }
+  email: [
+    { required: true, message: '请输入邮箱地址', trigger: 'blur' },
+    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+  ],
+  verificationCode: [
+    { required: true, message: '请输入邮箱验证码', trigger: 'blur' },
+    { len: 6, message: '验证码长度为6位', trigger: 'blur' },
+    { pattern: /^\d{6}$/, message: '验证码必须是6位数字', trigger: 'blur' }
   ],
   password: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
@@ -148,15 +181,111 @@ const resetRules = {
   ]
 }
 
-// 页面加载时检查URL中的token参数
+// 监听邮箱变化，控制发送验证码按钮
+watch(() => resetForm.email, (newEmail) => {
+  // 验证邮箱格式
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  canSendVerification.value = emailRegex.test(newEmail)
+})
+
+// 页面加载时检查URL中的email参数
 onMounted(() => {
-  const urlToken = route.query.token
-  if (urlToken) {
-    token.value = urlToken
-    resetForm.token = urlToken
-    ElMessage.success('已自动填充重置令牌')
+  const urlEmail = route.query.email
+  if (urlEmail) {
+    emailFromQuery.value = urlEmail
+    resetForm.email = urlEmail
+    ElMessage.success('已自动填充邮箱地址')
   }
 })
+
+// 发送验证码
+const handleSendVerificationCode = async () => {
+  if (!resetForm.email) {
+    ElMessage.error('请先输入邮箱地址')
+    return
+  }
+
+  // 验证邮箱格式
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(resetForm.email)) {
+    ElMessage.error('请输入正确的邮箱格式')
+    return
+  }
+
+  verificationCodeLoading.value = true
+  
+  try {
+    console.log('发送重置密码验证码请求:', { email: resetForm.email })
+    console.log('请求URL:', `${BASE_URL}/auth/send-reset-code`)
+    
+    const response = await userApi.sendResetCode({ 
+      email: resetForm.email 
+    })
+    
+    console.log('发送重置密码验证码响应:', response)
+    
+    // 检查响应格式
+    if (response && typeof response === 'object' && 'code' in response) {
+      console.log('🏷️ 发送重置密码验证码标准格式响应，code:', response.code, 'message:', response.message)
+      
+      const successCodes = [200, 0, 201, 204]
+      if (successCodes.includes(response.code)) {
+        console.log('✅ 重置密码验证码发送成功，响应码:', response.code)
+        ElMessage.success('验证码已发送到您的邮箱，请查收')
+        
+        // 开始倒计时
+        verificationCountdown.value = 60
+        const timer = setInterval(() => {
+          verificationCountdown.value--
+          if (verificationCountdown.value <= 0) {
+            clearInterval(timer)
+          }
+        }, 1000)
+      } else {
+        console.log('❌ 重置密码验证码发送失败，错误码:', response.code, '错误信息:', response.message)
+        const errorMsg = response.message && response.message.trim() !== '' ? response.message : '验证码发送失败'
+        throw new Error(errorMsg)
+      }
+    } else {
+      console.log('✅ 重置密码验证码发送成功（非标准格式响应）')
+      ElMessage.success('验证码已发送到您的邮箱，请查收')
+      
+      // 开始倒计时
+      verificationCountdown.value = 60
+      const timer = setInterval(() => {
+        verificationCountdown.value--
+        if (verificationCountdown.value <= 0) {
+          clearInterval(timer)
+        }
+      }, 1000)
+    }
+  } catch (error) {
+    console.error('发送重置密码验证码失败:', error)
+    console.error('错误详情:', error.response?.data)
+    console.error('HTTP状态码:', error.response?.status)
+    console.error('完整的错误响应:', JSON.stringify(error.response?.data, null, 2))
+    
+    let errorMessage = '验证码发送失败'
+    if (error.response?.status === 429) {
+      errorMessage = '发送频率过高，请稍后再试'
+    } else if (error.response?.status === 400) {
+      errorMessage = '邮箱格式不正确或未注册'
+    } else if (error.response?.status === 404) {
+      errorMessage = '该邮箱未注册'
+    } else if (error.response?.status === 500) {
+      errorMessage = '服务器内部错误，请稍后重试'
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+    
+    console.log('显示错误消息:', errorMessage)
+    ElMessage.error(errorMessage)
+  } finally {
+    verificationCodeLoading.value = false
+  }
+}
 
 // 处理重置密码
 const handleResetPassword = async () => {
@@ -169,13 +298,13 @@ const handleResetPassword = async () => {
       try {
         // 准备重置密码数据
         const resetData = {
-          token: resetForm.token,
-          password: resetForm.password,
-          confirmPassword: resetForm.confirmPassword
+          email: resetForm.email,
+          verificationCode: resetForm.verificationCode,
+          newPassword: resetForm.password
         }
         
         console.log('重置密码数据:', resetData)
-        console.log('请求URL:', `${BASE_URL}/auth/reset-password`)
+        console.log('请求URL:', `${BASE_URL}/auth/reset-password-with-code`)
         
         // 发送重置密码请求
         const response = await userApi.resetPassword(resetData)
@@ -188,6 +317,11 @@ const handleResetPassword = async () => {
           const successCodes = [200, 0, 201, 204]
           if (successCodes.includes(response.code)) {
             console.log('✅ 重置密码成功，响应码:', response.code)
+            
+            // 标记为密码重置，以便下次登录时特殊处理
+            localStorage.setItem('isPasswordReset', 'true')
+            console.log('🔄 已标记为密码重置状态')
+            
             ElMessage.success('密码重置成功！请使用新密码登录')
             // 延迟跳转到登录页
             setTimeout(() => {
@@ -211,9 +345,9 @@ const handleResetPassword = async () => {
         
         let errorMessage = '重置失败，请稍后重试'
         if (error.response?.status === 400) {
-          errorMessage = '重置令牌无效或已过期'
+          errorMessage = '验证码无效或已过期，或邮箱不正确'
         } else if (error.response?.status === 404) {
-          errorMessage = '重置令牌不存在'
+          errorMessage = '该邮箱未注册'
         } else if (error.response?.status === 500) {
           errorMessage = '服务器内部错误，请稍后重试'
         } else if (error.response?.data?.message) {

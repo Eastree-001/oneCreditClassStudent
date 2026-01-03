@@ -136,13 +136,45 @@
                 />
               </el-form-item>
 
+              <el-form-item prop="verificationCode">
+                <div style="display: flex; gap: 8px; width: 100%;">
+                  <el-input
+                    v-model="registerForm.verificationCode"
+                    placeholder="请输入邮箱验证码（6位数字）"
+                    size="large"
+                    :prefix-icon="Key"
+                    style="flex: 1;"
+                  />
+                  <el-button
+                    type="primary"
+                    size="large"
+                    :loading="verificationCodeLoading"
+                    :disabled="!canSendVerification || verificationCountdown > 0"
+                    @click="handleSendVerificationCode"
+                    style="flex-shrink: 0; min-width: 120px;"
+                  >
+                    {{ verificationCountdown > 0 ? `${verificationCountdown}s后重发` : '发送验证码' }}
+                  </el-button>
+                </div>
+              </el-form-item>
+
               <el-form-item prop="universityName">
-                <el-input
+                <el-select
                   v-model="registerForm.universityName"
-                  placeholder="请输入高校名称"
+                  placeholder="请选择高校"
                   size="large"
                   :prefix-icon="School"
-                />
+                  filterable
+                  :loading="schoolsLoading"
+                  style="width: 100%;"
+                >
+                  <el-option
+                    v-for="school in schools"
+                    :key="school.id || school.universityName"
+                    :label="school.universityName || school"
+                    :value="school.universityName || school"
+                  />
+                </el-select>
               </el-form-item>
 
               <el-form-item prop="password">
@@ -195,7 +227,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -203,6 +235,7 @@ import {
   User,
   Lock,
   Message,
+  Key,
   Document,
   DataAnalysis,
   Briefcase
@@ -210,6 +243,8 @@ import {
 import { themeColors } from '@/styles/variables.js'
 import { userApi } from '@/api/user.js'
 import { BASE_URL } from '@/config/api.js'
+import '@/utils/tokenDebugger.js'
+import '@/utils/passwordResetHelper.js'
 
 const router = useRouter()
 
@@ -217,6 +252,11 @@ const activeTab = ref('login')
 const rememberMe = ref(false)
 const loginLoading = ref(false)
 const registerLoading = ref(false)
+const verificationCodeLoading = ref(false)
+const verificationCountdown = ref(0)
+const canSendVerification = ref(false)
+const schoolsLoading = ref(false)
+const schools = ref([])
 
 const loginFormRef = ref(null)
 const registerFormRef = ref(null)
@@ -232,6 +272,7 @@ const registerForm = reactive({
   studentId: '',
   username: '',
   email: '',
+  verificationCode: '',
   universityName: '',
   password: '',
   confirmPassword: '',
@@ -281,6 +322,11 @@ const registerRules = {
     { required: true, message: '请输入邮箱', trigger: 'blur' },
     { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
   ],
+  verificationCode: [
+    { required: true, message: '请输入邮箱验证码', trigger: 'blur' },
+    { len: 6, message: '验证码长度为6位', trigger: 'blur' },
+    { pattern: /^\d{6}$/, message: '验证码必须是6位数字', trigger: 'blur' }
+  ],
   universityName: [
     { required: true, message: '请输入高校名称', trigger: 'blur' },
     { min: 2, max: 50, message: '高校名称长度在2到50个字符', trigger: 'blur' }
@@ -296,6 +342,140 @@ const registerRules = {
   agreement: [
     { validator: validateAgreement, trigger: 'change' }
   ]
+}
+
+// 监听邮箱变化，控制发送验证码按钮
+watch(() => registerForm.email, (newEmail) => {
+  // 验证邮箱格式
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  canSendVerification.value = emailRegex.test(newEmail)
+})
+
+// 获取学校列表
+const fetchSchools = async () => {
+  schoolsLoading.value = true
+  try {
+    console.log('🏫 开始获取学校列表...')
+    const response = await userApi.getSchools()
+    console.log('🏫 学校列表响应:', response)
+    
+    // 处理响应数据
+    if (response && response.data) {
+      schools.value = response.data
+      console.log('✅ 学校列表获取成功:', schools.value)
+    } else if (Array.isArray(response)) {
+      schools.value = response
+      console.log('✅ 学校列表获取成功 (直接数组):', schools.value)
+    } else {
+      console.warn('⚠️ 学校列表响应格式异常:', response)
+      schools.value = []
+    }
+  } catch (error) {
+    console.error('❌ 获取学校列表失败:', error)
+    schools.value = []
+    // 如果获取失败，可以提供一些默认学校作为备选
+    schools.value = [
+      { id: 1, universityName: '清华大学' },
+      { id: 2, universityName: '北京大学' },
+      { id: 3, universityName: '复旦大学' },
+      { id: 4, universityName: '上海交通大学' },
+      { id: 5, universityName: '浙江大学' }
+    ]
+  } finally {
+    schoolsLoading.value = false
+  }
+}
+
+// 组件挂载时获取学校列表
+onMounted(() => {
+  fetchSchools()
+})
+
+// 发送验证码
+const handleSendVerificationCode = async () => {
+  if (!registerForm.email) {
+    ElMessage.error('请先输入邮箱地址')
+    return
+  }
+
+  // 验证邮箱格式
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(registerForm.email)) {
+    ElMessage.error('请输入正确的邮箱格式')
+    return
+  }
+
+  verificationCodeLoading.value = true
+  
+  try {
+    console.log('发送验证码请求:', { email: registerForm.email })
+    console.log('请求URL:', `${BASE_URL}/auth/send-verification`)
+    
+    const response = await userApi.sendVerification({ 
+      email: registerForm.email 
+    })
+    
+    console.log('发送验证码响应:', response)
+    
+    // 检查响应格式
+    if (response && typeof response === 'object' && 'code' in response) {
+      console.log('🏷️ 发送验证码标准格式响应，code:', response.code, 'message:', response.message)
+      
+      const successCodes = [200, 0, 201, 204]
+      if (successCodes.includes(response.code)) {
+        console.log('✅ 验证码发送成功，响应码:', response.code)
+        ElMessage.success('验证码已发送到您的邮箱，请查收')
+        
+        // 开始倒计时
+        verificationCountdown.value = 60
+        const timer = setInterval(() => {
+          verificationCountdown.value--
+          if (verificationCountdown.value <= 0) {
+            clearInterval(timer)
+          }
+        }, 1000)
+      } else {
+        console.log('❌ 验证码发送失败，错误码:', response.code, '错误信息:', response.message)
+        const errorMsg = response.message && response.message.trim() !== '' ? response.message : '验证码发送失败'
+        throw new Error(errorMsg)
+      }
+    } else {
+      console.log('✅ 验证码发送成功（非标准格式响应）')
+      ElMessage.success('验证码已发送到您的邮箱，请查收')
+      
+      // 开始倒计时
+      verificationCountdown.value = 60
+      const timer = setInterval(() => {
+        verificationCountdown.value--
+        if (verificationCountdown.value <= 0) {
+          clearInterval(timer)
+        }
+      }, 1000)
+    }
+  } catch (error) {
+    console.error('发送验证码失败:', error)
+    console.error('错误详情:', error.response?.data)
+    console.error('HTTP状态码:', error.response?.status)
+    console.error('完整的错误响应:', JSON.stringify(error.response?.data, null, 2))
+    
+    let errorMessage = '验证码发送失败'
+    if (error.response?.status === 429) {
+      errorMessage = '发送频率过高，请稍后再试'
+    } else if (error.response?.status === 400) {
+      errorMessage = '邮箱格式不正确或已被使用'
+    } else if (error.response?.status === 500) {
+      errorMessage = '服务器内部错误，请稍后重试'
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+    
+    console.log('显示错误消息:', errorMessage)
+    ElMessage.error(errorMessage)
+  } finally {
+    verificationCodeLoading.value = false
+  }
 }
 
 // 处理登录
@@ -337,6 +517,19 @@ const handleLogin = async () => {
         
         // 使用token管理器保存token
         const { tokenManager } = await import('@/utils/tokenManager')
+        
+        // 检查是否是密码重置后的首次登录
+        const isPasswordReset = localStorage.getItem('isPasswordReset') === 'true'
+        if (isPasswordReset) {
+          console.log('🔄 检测到密码重置后的首次登录，清除旧token并重新设置')
+          // 清除所有旧认证信息
+          localStorage.removeItem('token')
+          localStorage.removeItem('refreshToken')
+          localStorage.removeItem('isAuthenticated')
+          localStorage.removeItem('isPasswordReset')
+          console.log('🗑️ 已清除旧认证信息')
+        }
+        
         tokenManager.setToken(data.token, data.refreshToken)
         console.log('🔑 用户专属token已通过tokenManager保存')
         
@@ -434,9 +627,28 @@ const handleLogin = async () => {
             console.log('✅ 推荐课程API验证成功，用户专属token工作正常:', testResponse)
           } else {
             console.warn('⚠️ Token验证失败，推荐课程API可能不可用')
+            
+            // 如果是密码重置后的登录，尝试重新获取用户信息
+            const isPasswordReset = localStorage.getItem('isPasswordReset') === 'true'
+            if (isPasswordReset) {
+              console.log('🔄 密码重置后token验证失败，尝试重新获取用户信息')
+              try {
+                const userInfo = await userApi.getAuthUserInfo()
+                console.log('✅ 重新获取用户信息成功:', userInfo)
+              } catch (userError) {
+                console.error('❌ 重新获取用户信息失败:', userError)
+              }
+            }
           }
         } catch (apiError) {
           console.warn('⚠️ 推荐课程API验证失败，但登录仍有效:', apiError.message)
+          
+          // 如果是密码重置后的登录且API验证失败，清除可能的问题标记
+          const isPasswordReset = localStorage.getItem('isPasswordReset') === 'true'
+          if (isPasswordReset) {
+            console.log('🧹 清除密码重置标记，避免影响后续操作')
+            localStorage.removeItem('isPasswordReset')
+          }
         }
         
         ElMessage.success('登录成功')
@@ -491,14 +703,22 @@ const handleRegister = async () => {
         password: registerForm.password
       }
       
+      // 如果有验证码，也包含进去（使用后端期望的字段名）
+      if (registerForm.verificationCode) {
+        registerData.emailVerificationCode = registerForm.verificationCode
+      }
+      
       try {
         
         // 打印调试信息
         console.log('注册数据:', registerData)
+        console.log('注册数据JSON:', JSON.stringify(registerData, null, 2))
         console.log('请求URL:', `${BASE_URL}/auth/register`)
         
-        // 发送完整注册信息到指定API
-        const response = await userApi.register(registerData)
+        // 尝试使用noTokenRequest发送注册请求（避免token问题）
+        const { noTokenRequest } = await import('@/utils/request')
+        console.log('📡 使用noTokenRequest发送注册请求...')
+        const response = await noTokenRequest.post('/auth/register', registerData)
         console.log('注册响应:', response)
         
         // 详细检查响应格式
@@ -544,6 +764,7 @@ const handleRegister = async () => {
           studentId: '',
           username: '',
           email: '',
+          verificationCode: '',
           universityName: '',
           password: '',
           confirmPassword: '',
@@ -554,31 +775,60 @@ const handleRegister = async () => {
       } catch (error) {
         console.error('注册失败:', error)
         console.error('错误详情:', error.response?.data)
+        console.error('HTTP状态码:', error.response?.status)
         console.error('发送的数据:', registerData)
         if (error.response?.data?.errors) {
           console.error('字段验证错误:', error.response.data.errors)
+          // 显示具体的字段验证错误
+          const errors = error.response.data.errors
+          if (Array.isArray(errors)) {
+            errors.forEach(err => {
+              console.error('字段:', err.field, '错误:', err.message)
+            })
+          } else if (typeof errors === 'object') {
+            // 处理对象形式的错误
+            Object.keys(errors).forEach(field => {
+              console.error('字段:', field, '错误:', errors[field])
+            })
+          }
         }
+        
+        // 显示完整的响应数据以便调试
+        console.log('完整的错误响应:', JSON.stringify(error.response?.data, null, 2))
         
         // 处理不同类型的错误
         let errorMessage = '注册失败'
         
-        // 首先检查业务逻辑抛出的错误（排除空消息和"注册失败"）
-        if (error.message && error.message !== '注册失败' && error.message.trim() !== '') {
-          errorMessage = error.message
-        } 
-        // 然后检查HTTP状态码错误
-        else if (error.response?.status === 409) {
-          errorMessage = '用户名或学号已存在'
-        } else if (error.response?.status === 400) {
-          errorMessage = '输入信息有误，请检查后重试'
-        } else if (error.response?.status === 500) {
-          errorMessage = '服务器内部错误，请稍后重试'
-        } else if (error.response?.data?.message) {
+        // 优先检查字段验证错误
+        if (error.response?.data?.errors) {
+          const errors = error.response.data.errors
+          if (Array.isArray(errors) && errors.length > 0) {
+            errorMessage = errors[0].message || errors[0]
+          } else if (typeof errors === 'object') {
+            // 从对象中提取第一个错误
+            const firstField = Object.keys(errors)[0]
+            if (firstField && errors[firstField]) {
+              errorMessage = errors[firstField]
+            }
+          }
+        }
+        // 检查响应中的错误消息
+        else if (error.response?.data?.message) {
           errorMessage = error.response.data.message
         } else if (error.response?.data?.error) {
           errorMessage = error.response.data.error
-        } else if (error.message) {
+        }
+        // 然后检查业务逻辑抛出的错误（排除空消息和"注册失败"）
+        else if (error.message && error.message !== '注册失败' && error.message.trim() !== '') {
           errorMessage = error.message
+        }
+        // 检查HTTP状态码错误
+        else if (error.response?.status === 409) {
+          errorMessage = '用户名或学号已存在'
+        } else if (error.response?.status === 400) {
+          errorMessage = '请检查输入信息（特别是邮箱验证码）'
+        } else if (error.response?.status === 500) {
+          errorMessage = '服务器内部错误，请稍后重试'
         }
         
         console.log('显示错误消息:', errorMessage)
@@ -597,10 +847,10 @@ const handleForgotPassword = async () => {
   try {
     // 使用Element Plus的输入框
     const { value: email } = await ElMessageBox.prompt(
-      '请输入您的注册邮箱，我们将向您发送密码重置链接',
+      '请输入您的注册邮箱，我们将向您发送密码重置验证码',
       '忘记密码',
       {
-        confirmButtonText: '发送重置链接',
+        confirmButtonText: '发送验证码',
         cancelButtonText: '取消',
         inputPattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
         inputErrorMessage: '请输入有效的邮箱地址',
@@ -610,38 +860,42 @@ const handleForgotPassword = async () => {
 
     if (!email) return
 
-    console.log('准备发送忘记密码请求:', { email })
-    console.log('请求URL:', `${BASE_URL}/auth/forgot-password`)
+    console.log('准备发送重置密码验证码请求:', { email })
+    console.log('请求URL:', `${BASE_URL}/auth/send-reset-code`)
 
-    // 发送忘记密码请求
-    const response = await userApi.forgotPassword({ email })
-    console.log('忘记密码响应:', response)
+    // 发送重置密码验证码请求
+    const response = await userApi.sendResetCode({ email })
+    console.log('发送重置密码验证码响应:', response)
 
     // 检查响应格式
     if (response && typeof response === 'object' && 'code' in response) {
-      console.log('🏷️ 忘记密码标准格式响应，code:', response.code, 'message:', response.message)
+      console.log('🏷️ 发送重置密码验证码标准格式响应，code:', response.code, 'message:', response.message)
       
       const successCodes = [200, 0, 201, 204]
       if (successCodes.includes(response.code)) {
-        console.log('✅ 忘记密码请求成功，响应码:', response.code)
-        ElMessage.success('密码重置链接已发送到您的邮箱，请查收')
+        console.log('✅ 发送重置密码验证码成功，响应码:', response.code)
+        ElMessage.success('重置密码验证码已发送到您的邮箱，请查收')
         
-        // 如果响应中包含重置令牌，可以直接跳转到重置页面
-        if (response.data && response.data.resetToken) {
-          console.log('🔗 跳转到重置密码页面，携带令牌')
-          router.push({
-            path: '/reset-password',
-            query: { token: response.data.resetToken }
-          })
-        }
+        // 跳转到重置密码页面，携带邮箱信息
+        console.log('🔗 跳转到重置密码页面，携带邮箱信息')
+        router.push({
+          path: '/reset-password',
+          query: { email: email }
+        })
       } else {
-        console.log('❌ 忘记密码请求失败，错误码:', response.code, '错误信息:', response.message)
+        console.log('❌ 发送重置密码验证码失败，错误码:', response.code, '错误信息:', response.message)
         const errorMsg = response.message && response.message.trim() !== '' ? response.message : '发送失败，请稍后重试'
         ElMessage.error(errorMsg)
       }
     } else {
-      console.log('✅ 忘记密码非标准格式响应，认为成功')
-      ElMessage.success('密码重置链接已发送到您的邮箱，请查收')
+      console.log('✅ 发送重置密码验证码非标准格式响应，认为成功')
+      ElMessage.success('重置密码验证码已发送到您的邮箱，请查收')
+      
+      // 跳转到重置密码页面，携带邮箱信息
+      router.push({
+        path: '/reset-password',
+        query: { email: email }
+      })
     }
   } catch (error) {
     if (error === 'cancel') {
@@ -649,7 +903,7 @@ const handleForgotPassword = async () => {
       return
     }
 
-    console.error('忘记密码请求失败:', error)
+    console.error('发送重置密码验证码失败:', error)
     console.error('错误详情:', error.response?.data)
     
     let errorMessage = '发送失败，请稍后重试'
@@ -657,6 +911,8 @@ const handleForgotPassword = async () => {
       errorMessage = '该邮箱未注册'
     } else if (error.response?.status === 400) {
       errorMessage = '邮箱格式不正确'
+    } else if (error.response?.status === 429) {
+      errorMessage = '发送频率过高，请稍后再试'
     } else if (error.response?.status === 500) {
       errorMessage = '服务器内部错误，请稍后重试'
     } else if (error.response?.data?.message) {

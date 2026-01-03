@@ -14,7 +14,27 @@ export const tokenManager = {
       console.log('🔍 验证token有效性...')
       
       // 尝试调用需要认证的API来验证token
-      const response = await request.get('/auth/me')
+      // 使用多个API进行验证，提高可靠性
+      let response
+      try {
+        // 首先尝试获取用户信息
+        response = await request.get('/auth/me')
+      } catch (meError) {
+        console.warn('🔍 /auth/me 验证失败，尝试其他API:', meError.message)
+        try {
+          // 备用方案：尝试用户统计API
+          response = await request.get('/user/stats')
+        } catch (statsError) {
+          console.warn('🔍 /user/stats 验证失败，尝试推荐课程API:', statsError.message)
+          try {
+            // 最后尝试：推荐课程API
+            response = await request.get('/courses/recommended')
+          } catch (coursesError) {
+            console.warn('🔍 所有API验证都失败:', coursesError.message)
+            throw coursesError
+          }
+        }
+      }
       console.log('✅ Token验证成功:', response)
       return true
     } catch (error) {
