@@ -3,9 +3,9 @@ import { API_IP, API_PORT } from '@/config/api'
 
 // 用户相关API
 export const userApi = {
-  // 用户登录
+  // 用户登录 (使用noTokenRequest，因为登录接口不需要token)
   login(data) {
-    return request.post('/auth/login', data)
+    return noTokenRequest.post('/auth/login', data)
   },
   
   // 发送验证码
@@ -20,12 +20,12 @@ export const userApi = {
 
   // 用户注册
   register(data) {
-    return request.post('/auth/register', data)
+    return noTokenRequest.post('/auth/register', data)
   },
-  
+
   // 忘记密码
   forgotPassword(data) {
-    return request.post('/auth/forgot-password', data)
+    return noTokenRequest.post('/auth/forgot-password', data)
   },
   
   // 重置密码

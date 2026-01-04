@@ -1,4 +1,4 @@
-import request from '@/utils/request'
+import request, { commonRequest } from '@/utils/request'
 
 export const courseApi = {
   // 获取课程列表
@@ -55,5 +55,11 @@ export const courseApi = {
   getBatchCourseTeachers(courseIds) {
     console.log(`👥 批量获取课程教师: /courses/teachers`)
     return request.post('/courses/teachers', { courseIds })
+  },
+
+  // 获取课程视频列表
+  getCourseVideos(courseId) {
+    console.log(`🎬 获取课程视频: /videos/course/${courseId}`)
+    return commonRequest.get(`/videos/course/${courseId}`)
   }
 }

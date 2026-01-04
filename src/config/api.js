@@ -29,6 +29,9 @@ export const API_CONFIG = {
     UNSELECT_COURSE: (id) => `/courses/${id}/select`, // DELETE请求到同一端点
     CONFIRM_SELECTION: '/courses/confirm-selection',
     RECOMMENDED_COURSES: '/courses/recommended',
+
+    // 视频相关
+    COURSE_VIDEOS: (id) => `/videos/course/${id}`,
     
     // 用户相关
     USER_INFO: '/user/info',

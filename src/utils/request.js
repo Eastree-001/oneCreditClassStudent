@@ -1,8 +1,8 @@
 import axios from 'axios'
 import router from '@/router'
-import { API_CONFIG } from '@/config/api'
+import { API_CONFIG, API_IP, API_PORT } from '@/config/api'
 
-// 创建axios实例
+// 创建axios实例（包含 /api/student 路径）
 const request = axios.create({
   baseURL: API_CONFIG.BASE_URL,
   timeout: 10000, // 请求超时时间
@@ -14,6 +14,15 @@ const request = axios.create({
 // 创建不需要token验证的axios实例（用于验证码等接口）
 const noTokenRequest = axios.create({
   baseURL: API_CONFIG.BASE_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
+
+// 创建通用API实例（不包含 /student 路径）
+const commonRequest = axios.create({
+  baseURL: `http://${API_IP}:${API_PORT}/api`,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
@@ -47,6 +56,62 @@ noTokenRequest.interceptors.response.use(
   },
   error => {
     console.log('🚨 noTokenRequest HTTP错误:', error.response?.status, error.message)
+    return Promise.reject(error)
+  }
+)
+
+// commonRequest请求拦截器
+commonRequest.interceptors.request.use(
+  async (config) => {
+    // 如果是FormData，不要设置Content-Type，让浏览器自动设置
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type']
+    }
+
+    // 打印请求信息
+    console.log('📡 发送commonRequest请求:', {
+      url: config.baseURL + config.url,
+      method: config.method,
+      data: config.data instanceof FormData ? 'FormData (文件数据)' : config.data
+    })
+
+    // 添加token
+    const token = localStorage.getItem('token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+      console.log('🔑 commonRequest已添加Authorization头')
+    }
+
+    return config
+  },
+  error => Promise.reject(error)
+)
+
+// commonRequest响应拦截器
+commonRequest.interceptors.response.use(
+  response => {
+    const data = response.data
+    console.log('📡 commonRequest响应:', data)
+
+    // 支持标准格式和直接数组格式
+    return data
+  },
+  error => {
+    console.log('🚨 commonRequest HTTP错误:', error.response?.status, error.message)
+
+    // 401错误处理
+    if (error.response?.status === 401) {
+      console.log('🔒 commonRequest收到401错误')
+      localStorage.removeItem('token')
+      localStorage.removeItem('refreshToken')
+      localStorage.removeItem('isAuthenticated')
+
+      const currentPath = router.currentRoute.value.path
+      if (currentPath !== '/login') {
+        router.push('/login')
+      }
+    }
+
     return Promise.reject(error)
   }
 )
@@ -169,4 +234,4 @@ request.interceptors.response.use(
 )
 
 export default request
-export { noTokenRequest }
+export { noTokenRequest, commonRequest }

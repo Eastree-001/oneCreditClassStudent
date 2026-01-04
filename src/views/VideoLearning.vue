@@ -123,6 +123,8 @@ import {
   Clock,
   Warning
 } from '@element-plus/icons-vue'
+import { courseApi } from '@/api'
+import { API_IP, API_PORT } from '@/config/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -155,14 +157,19 @@ const getVideoUrl = (video) => {
               video.src ||
               video.video ||
               video.playUrl ||
-              video.playUrl ||
               video.fileUrl ||
               video.file_path ||
               ''
 
-  console.log('🎬 最终视频URL:', url)
+  // 如果URL是相对路径，拼接完整的服务器地址
+  let fullUrl = url
+  if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+    fullUrl = `http://${API_IP}:${API_PORT}/${url}`
+  }
 
-  return url
+  console.log('🎬 最终视频URL:', fullUrl)
+
+  return fullUrl
 }
 
 // 获取视频时长（支持多种字段名）
@@ -190,60 +197,35 @@ const getVideoDuration = (video) => {
 const fetchVideos = async () => {
   loading.value = true
   try {
-    const token = localStorage.getItem('token')
     console.log('🎬 获取课程视频列表，课程ID:', courseId.value)
-    console.log('🔑 Token:', token ? '已获取' : '未获取')
-    console.log('📍 请求URL:', `http://192.168.1.120:8082/api/videos/course/${courseId.value}`)
 
-    const response = await fetch(`http://192.168.1.120:8082/api/videos/course/${courseId.value}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      }
-    })
-
-    console.log('📡 响应状态:', response.status, response.statusText)
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        console.error('🔒 Token验证失败，需要重新登录')
-        ElMessage.error('登录已过期，请重新登录')
-        localStorage.removeItem('token')
-        localStorage.removeItem('refreshToken')
-        localStorage.removeItem('isAuthenticated')
-        router.push('/login')
-        return
-      }
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-    }
-
-    const data = await response.json()
-    console.log('📝 课程视频列表响应:', data)
-    console.log('📋 响应数据类型:', Array.isArray(data) ? '数组' : typeof data)
+    const response = await courseApi.getCourseVideos(courseId.value)
+    console.log('📝 课程视频列表响应:', response)
+    console.log('📋 响应数据类型:', Array.isArray(response) ? '数组' : typeof response)
 
     // 处理响应数据 - 支持直接数组和标准格式
-    if (Array.isArray(data)) {
+    if (Array.isArray(response)) {
       // 直接返回数组格式
-      videos.value = data
+      videos.value = response
       console.log('✅ 获取视频列表成功（数组格式）:', videos.value.length, '个视频')
-      if (videos.value.length > 0) {
-        console.log('📋 视频数据示例:', videos.value[0])
-        console.log('📋 视频字段:', Object.keys(videos.value[0]))
-      }
-    } else if (data && (data.code === 200 || data.code === 0)) {
+    } else if (response && (response.code === 200 || response.code === 0)) {
       // 标准格式 {code, data, ...}
-      videos.value = data.data || data.videos || []
-      currentCourse.value = data.course || {}
+      videos.value = response.data || response.videos || []
+      currentCourse.value = response.course || {}
       console.log('✅ 获取视频列表成功（标准格式）:', videos.value.length, '个视频')
-    } else if (data && data.data && Array.isArray(data.data)) {
+    } else if (response && response.data && Array.isArray(response.data)) {
       // 另一种格式 {data: [...]}
-      videos.value = data.data
+      videos.value = response.data
       console.log('✅ 获取视频列表成功（data字段格式）:', videos.value.length, '个视频')
     } else {
       ElMessage.error('获取视频列表失败：数据格式异常')
-      console.error('❌ 获取视频列表失败，数据格式异常:', data)
+      console.error('❌ 获取视频列表失败，数据格式异常:', response)
       throw new Error('数据格式异常')
+    }
+
+    if (videos.value.length > 0) {
+      console.log('📋 视频数据示例:', videos.value[0])
+      console.log('📋 视频字段:', Object.keys(videos.value[0]))
     }
 
     // 恢复上次观看位置
