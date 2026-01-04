@@ -1,7 +1,7 @@
 // API配置文件
 
 // API服务器IP地址常量 - 便于统一管理
-export const API_IP = '192.168.1.111'
+export const API_IP = '192.168.1.153'
 export const API_PORT = '8082'
 export const API_BASE_PATH = '/api/student'
 
@@ -29,6 +29,9 @@ export const API_CONFIG = {
     UNSELECT_COURSE: (id) => `/courses/${id}/select`, // DELETE请求到同一端点
     CONFIRM_SELECTION: '/courses/confirm-selection',
     RECOMMENDED_COURSES: '/courses/recommended',
+
+    // 视频相关
+    COURSE_VIDEOS: (id) => `/videos/course/${id}`,
     
     // 用户相关
     USER_INFO: '/user/info',

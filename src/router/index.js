@@ -15,6 +15,12 @@ const routes = [
     meta: { title: '重置密码', requiresAuth: false }
   },
   {
+    path: '/video-learning/:courseId',
+    name: 'VideoLearning',
+    component: () => import('@/views/VideoLearning.vue'),
+    meta: { title: '视频学习', requiresAuth: true }
+  },
+  {
     path: '/',
     component: Layout,
     redirect: '/home',

@@ -1,8 +1,8 @@
 import axios from 'axios'
 import router from '@/router'
-import { API_CONFIG } from '@/config/api'
+import { API_CONFIG, API_IP, API_PORT } from '@/config/api'
 
-// 创建axios实例
+// 创建axios实例（包含 /api/student 路径）
 const request = axios.create({
   baseURL: API_CONFIG.BASE_URL,
   timeout: 10000, // 请求超时时间
@@ -14,6 +14,15 @@ const request = axios.create({
 // 创建不需要token验证的axios实例（用于验证码等接口）
 const noTokenRequest = axios.create({
   baseURL: API_CONFIG.BASE_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
+
+// 创建通用API实例（不包含 /student 路径）
+const commonRequest = axios.create({
+  baseURL: `http://${API_IP}:${API_PORT}/api`,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
@@ -51,56 +60,61 @@ noTokenRequest.interceptors.response.use(
   }
 )
 
-// 获取token的函数
-const refreshToken = async () => {
-  try {
-    console.log('🔄 尝试刷新token...')
-    console.log('📡 刷新Token URL:', API_CONFIG.BASE_URL + API_CONFIG.ENDPOINTS.REFRESH_TOKEN)
-    
-    // 检查是否已有refresh token
-    const existingRefreshToken = localStorage.getItem('refreshToken')
-    const requestBody = existingRefreshToken ? { refreshToken: existingRefreshToken } : {}
-    
-    console.log('📤 刷新Token请求数据:', requestBody)
-    
-    const response = await axios.post(API_CONFIG.BASE_URL + API_CONFIG.ENDPOINTS.REFRESH_TOKEN, requestBody, {
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    })
-    console.log('📝 Token刷新响应:', response.data)
-    
-    // 检查响应格式
-    const data = response.data
-    if (data && (data.token || data.data?.token)) {
-      const token = data.token || data.data.token
-      localStorage.setItem('token', token)
-      
-      // 如果响应中有新的refresh token，保存它
-      if (data.refreshToken || data.data?.refreshToken) {
-        const newRefreshToken = data.refreshToken || data.data.refreshToken
-        localStorage.setItem('refreshToken', newRefreshToken)
-      }
-      
-      console.log('✅ Token刷新成功:', token.substring(0, 20) + '...')
-      return token
-    } else {
-      console.log('❌ Token刷新失败，响应中没有token')
-      return null
+// commonRequest请求拦截器
+commonRequest.interceptors.request.use(
+  async (config) => {
+    // 如果是FormData，不要设置Content-Type，让浏览器自动设置
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type']
     }
-  } catch (error) {
-    console.error('🚨 Token刷新失败:', error.response?.data || error.message)
-    
-    // 如果是401错误（refresh token无效），清除过期的tokens
+
+    // 打印请求信息
+    console.log('📡 发送commonRequest请求:', {
+      url: config.baseURL + config.url,
+      method: config.method,
+      data: config.data instanceof FormData ? 'FormData (文件数据)' : config.data
+    })
+
+    // 添加token
+    const token = localStorage.getItem('token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+      console.log('🔑 commonRequest已添加Authorization头')
+    }
+
+    return config
+  },
+  error => Promise.reject(error)
+)
+
+// commonRequest响应拦截器
+commonRequest.interceptors.response.use(
+  response => {
+    const data = response.data
+    console.log('📡 commonRequest响应:', data)
+
+    // 支持标准格式和直接数组格式
+    return data
+  },
+  error => {
+    console.log('🚨 commonRequest HTTP错误:', error.response?.status, error.message)
+
+    // 401错误处理
     if (error.response?.status === 401) {
+      console.log('🔒 commonRequest收到401错误')
       localStorage.removeItem('token')
       localStorage.removeItem('refreshToken')
-      console.log('🗑️ 已清除过期的tokens，需要重新登录')
+      localStorage.removeItem('isAuthenticated')
+
+      const currentPath = router.currentRoute.value.path
+      if (currentPath !== '/login') {
+        router.push('/login')
+      }
     }
-    
-    return null
+
+    return Promise.reject(error)
   }
-}
+)
 
 // 获取初始token的函数（用于开发/测试）
 const getInitialToken = async () => {
@@ -196,39 +210,28 @@ request.interceptors.response.use(
   },
   async error => {
     console.log('🚨 HTTP错误:', error.response?.status, error.message)
-    
+
     // 只处理HTTP层面的错误（网络错误、服务器错误等）
     if (error.response?.status === 401) {
-      // 401错误，尝试刷新token
-      console.log('🔄 收到401错误，尝试刷新token...')
-      const newToken = await refreshToken()
-      
-      if (newToken) {
-        console.log('✅ Token刷新成功，重试原请求')
-        // 重试原请求
-        const originalRequest = error.config
-        originalRequest.headers.Authorization = `Bearer ${newToken}`
-        return request(originalRequest)
-      } else {
-        console.log('❌ Token刷新失败，清除认证信息')
-        // 刷新失败，清除认证信息
-        localStorage.removeItem('token')
-        localStorage.removeItem('refreshToken')
-        localStorage.removeItem('isAuthenticated')
-        
-        // 只有在非登录页面时才跳转到登录页
-        const currentPath = router.currentRoute.value.path
-        if (currentPath !== '/login') {
-          router.push('/login')
-        }
+      // 401错误，清除认证信息并跳转到登录页（不进行token刷新）
+      console.log('🔒 收到401错误，清除认证信息')
+      localStorage.removeItem('token')
+      localStorage.removeItem('refreshToken')
+      localStorage.removeItem('isAuthenticated')
+
+      // 只有在非登录页面时才跳转到登录页
+      const currentPath = router.currentRoute.value.path
+      if (currentPath !== '/login') {
+        console.log('📍 跳转到登录页')
+        router.push('/login')
       }
     } else if (error.response?.status === 500) {
-      // 500错误通常表示服务器内部问题，不进行自动刷新
-      console.warn('⚠️ 服务器500错误，跳过token刷新')
+      // 500错误通常表示服务器内部问题
+      console.warn('⚠️ 服务器500错误')
     }
     return Promise.reject(error)
   }
 )
 
 export default request
-export { noTokenRequest }
+export { noTokenRequest, commonRequest }
