@@ -606,7 +606,8 @@ const handleReset = () => {
 }
 
 const handleContinue = (courseId) => {
-  ElMessage.info(`继续学习课程 ${courseId}`)
+  console.log('🎬 继续学习课程，课程ID:', courseId)
+  router.push(`/video-learning/${courseId}`)
 }
 
 const handleViewDetail = async (courseId) => {

@@ -207,7 +207,7 @@
           <div class="course-info">
             <div class="info-item">
               <el-icon><User /></el-icon>
-              <span>{{ course.enterprise }}</span>
+              <span>{{ course.teacher || course.enterprise || '未知教师' }}</span>
             </div>
             <div class="info-item">
               <el-icon><Calendar /></el-icon>
@@ -456,8 +456,6 @@ import {
 import { themeColors, courseCardColors } from '@/styles/variables.js'
 import { courseApi } from '@/api'
 import { BASE_URL } from '@/config/api.js'
-import { createTeacherDataDiagnostic } from '@/utils/teacherDataFix.js'
-import { enrichRecommendedCoursesWithTeacherData } from '@/utils/teacherDataBackend.js'
 
 const filterForm = ref({
   category: '',
@@ -506,10 +504,10 @@ const loadCourses = async () => {
     console.log('📚 获取课程列表...')
     const response = await courseApi.getCourses({
       page: 1,
-      limit: 100 // 获取更多课程
+      limit: 20 // 减少每次获取的课程数量，避免500错误
     })
     console.log('📝 课程列表响应:', response)
-    
+
     // 处理不同的响应格式
     let courses = []
     if (response && response.data) {
@@ -526,16 +524,20 @@ const loadCourses = async () => {
       // 标准格式
       courses = response.list
     }
-    
+
     // 为课程添加必要字段并分配背景图片
     if (courses.length > 0) {
       allCourses.value = courses.map((course, index) => {
+        // 优先使用课程列表中已有的教师信息
+        let teacherName = course.teacher || course.teacher_name || course.teacherInfo?.name
+
         // 确保必要字段存在
         return {
           id: course.id || index + 1,
           name: course.name || '未知课程',
           description: course.description || '暂无课程描述',
           enterprise: course.enterprise || '未知企业',
+          teacher: teacherName || '未知教师',
           semester: course.semester || '2024春季',
           credits: course.credits || 1,
           duration: course.duration || 16,
@@ -550,10 +552,13 @@ const loadCourses = async () => {
           syllabus: course.syllabus || generateDefaultSyllabus(course.name),
           reviews: course.reviews || [],
           recommendReason: course.recommendReason,
-          ...course // 保留其他字段
+          ...course // 保留其他字段（包括teacher字段）
         }
       })
       console.log('✅ 课程列表加载成功，数量:', allCourses.value.length)
+
+      // 异步补充教师信息（不影响页面首次渲染）
+      enrichCoursesWithTeacherInfo()
     } else {
       console.log('⚠️ 课程列表为空')
       allCourses.value = []
@@ -567,12 +572,12 @@ const loadCourses = async () => {
     if (error.response?.status === 500) {
       console.warn('⚠️ 服务器内部错误，可能的原因：')
       console.warn('1. 后端服务未启动或异常')
-      console.warn('2. 数据库连接问题') 
+      console.warn('2. 数据库连接问题')
       console.warn('3. API接口不存在')
-      console.warn('请检查服务器状态：http://192.168.1.134:8082')
+      console.warn(`请检查服务器状态：${BASE_URL}`)
     } else if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
       console.warn('⚠️ 无法连接到服务器，请检查：')
-      console.warn('1. 服务器IP地址是否正确：192.168.1.134')
+      console.warn(`1. 服务器IP地址是否正确：${API_IP}`)
       console.warn('2. 服务器端口是否开放：8082')
       console.warn('3. 网络连接是否正常')
     }
@@ -1024,6 +1029,80 @@ const generateDefaultSyllabus = (courseName) => {
   ]
 }
 
+// 异步补充教师信息
+const enrichCoursesWithTeacherInfo = async () => {
+  console.log('👨‍🏫 开始异步补充教师信息...')
+
+  // 找出缺少教师信息的课程
+  const coursesWithoutTeacher = allCourses.value.filter(
+    course => !course.teacher || course.teacher === '未知教师' || !course.teacherInfo
+  )
+
+  if (coursesWithoutTeacher.length === 0) {
+    console.log('✅ 所有课程都有教师信息，无需补充')
+    return
+  }
+
+  console.log(`📋 发现 ${coursesWithoutTeacher.length} 门课程缺少教师信息`)
+
+  // 为缺少教师信息的课程调用详情接口
+  for (const course of coursesWithoutTeacher) {
+    try {
+      console.log(`🔍 为课程 "${course.name}" (ID: ${course.id}) 获取详情...`)
+      const detailResponse = await courseApi.getCourseDetail(course.id)
+
+      if (detailResponse && detailResponse.data && detailResponse.data.teacher) {
+        // 更新本地课程的教师信息
+        course.teacher = detailResponse.data.teacher
+        console.log(`✅ 课程 "${course.name}" 教师信息更新: ${course.teacher}`)
+      } else {
+        console.log(`⚠️ 课程 "${course.name}" 详情接口未返回教师信息`)
+      }
+    } catch (error) {
+      console.warn(`⚠️ 课程 "${course.name}" 无法获取详情:`, error.message)
+    }
+  }
+
+  console.log('✅ 教师信息补充完成')
+}
+
+// 异步补充推荐课程的教师信息
+const enrichRecommendedCoursesWithTeacherInfo = async () => {
+  console.log('👨‍🏫 开始异步补充推荐课程教师信息...')
+
+  // 找出缺少教师信息的推荐课程
+  const coursesWithoutTeacher = recommendedCourses.value.filter(
+    course => !course.teacher || course.teacher === '未知教师'
+  )
+
+  if (coursesWithoutTeacher.length === 0) {
+    console.log('✅ 所有推荐课程都有教师信息，无需补充')
+    return
+  }
+
+  console.log(`📋 发现 ${coursesWithoutTeacher.length} 门推荐课程缺少教师信息`)
+
+  // 为缺少教师信息的推荐课程调用详情接口
+  for (const course of coursesWithoutTeacher) {
+    try {
+      console.log(`🔍 为推荐课程 "${course.name}" (ID: ${course.id}) 获取详情...`)
+      const detailResponse = await courseApi.getCourseDetail(course.id)
+
+      if (detailResponse && detailResponse.data && detailResponse.data.teacher) {
+        // 更新本地课程的教师信息
+        course.teacher = detailResponse.data.teacher
+        console.log(`✅ 推荐课程 "${course.name}" 教师信息更新: ${course.teacher}`)
+      } else {
+        console.log(`⚠️ 推荐课程 "${course.name}" 详情接口未返回教师信息`)
+      }
+    } catch (error) {
+      console.warn(`⚠️ 推荐课程 "${course.name}" 无法获取详情:`, error.message)
+    }
+  }
+
+  console.log('✅ 推荐课程教师信息补充完成')
+}
+
 // 课程推荐逻辑
 const refreshRecommendations = async () => {
   recommendationsLoading.value = true
@@ -1076,47 +1155,39 @@ const refreshRecommendations = async () => {
     console.log('✅ 推荐课程API调用成功，用户token验证通过')
     console.log('📊 推荐课程数据来源：后端数据库 (非模拟数据)')
     console.log('🔍 后端返回的课程数量:', courses.length)
-    console.log('👨‍🏫 推荐课程中的指导教师数据来源：后端数据库')
-    
-    // 从后端数据库获取真实的教师数据
-    console.log('🔧 从后端数据库获取推荐课程教师数据...')
-    const fixedCourses = await enrichRecommendedCoursesWithTeacherData(courses)
-    
-    // 生成诊断报告
-    const diagnosticReport = createTeacherDataDiagnostic(fixedCourses)
-    console.log('📋 教师数据诊断报告:', diagnosticReport)
-    
-    // 处理修复后的推荐课程数据
-    if (fixedCourses.length > 0) {
-      // 使用修复后的推荐课程数据
-      recommendedCourses.value = fixedCourses.map(course => {
+
+    // 处理推荐课程数据
+    if (courses.length > 0) {
+      recommendedCourses.value = courses.map(course => {
         // 查找对应的完整课程信息
         const fullCourse = allCourses.value.find(c => c.id === course.id)
-        
+
+        // 优先使用推荐API返回的教师数据，其次使用本地课程列表
+        let teacherName = course.teacher ||
+                          course.teacher_name ||
+                          course.teacherInfo?.name ||
+                          (fullCourse?.teacher) ||
+                          '未知教师'
+
         // 记录数据来源
-        console.log(`📋 推荐课程 "${course.name}" 数据来源分析:`)
-        console.log(`  修复后教师: ${course.teacher}`)
-        console.log(`  数据来源: ${course._teacherSource}`)
-        console.log(`  数据有效: ${course.hasValidTeacher}`)
-        if (fullCourse) {
-          console.log(`  本地课程教师: ${fullCourse.teacher}`)
-        }
-        
-        // 优化教师字段处理逻辑：优先使用从后端获取的教师数据
-        const finalTeacher = course.teacherInfo?.name || course.teacher || '未知教师'
-        
+        console.log(`📋 推荐课程 "${course.name}" 数据分析:`)
+        console.log(`  教师姓名: ${teacherName}`)
+
         return {
           ...fullCourse,
           ...course,
-          // 确保教师字段从后端推荐数据中获取
-          teacher: finalTeacher,
+          // 使用推荐API的教师数据
+          teacher: teacherName,
           recommendReason: course.recommendReason || getRecommendReason(course),
           // 添加数据来源标识
-          dataSource: course.teacher ? 'recommended_api' : 'fallback',
-          hasValidTeacher: !!course.teacher
+          dataSource: course.teacher ? 'recommended_api' : (fullCourse?.teacher ? 'course_list' : 'fallback'),
+          hasValidTeacher: !!teacherName && teacherName !== '未知教师'
         }
       })
       console.log('✅ 推荐课程加载成功，数量:', recommendedCourses.value.length)
+
+      // 异步补充缺少教师信息的推荐课程
+      enrichRecommendedCoursesWithTeacherInfo()
     } else {
       console.log('⚠️ 推荐课程为空')
       recommendedCourses.value = []

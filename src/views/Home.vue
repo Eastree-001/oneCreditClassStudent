@@ -818,7 +818,15 @@ const fetchNotices = async () => {
   } catch (error) {
     console.error('获取通知公告失败:', error)
     console.error('错误详情:', error.response?.data)
-    
+
+    // 如果是401错误，说明认证失败，跳转到登录页
+    if (error.response?.status === 401) {
+      console.log('🔒 认证失效，跳转到登录页')
+      ElMessage.warning('登录已过期，请重新登录')
+      router.push('/login')
+      return
+    }
+
     // 如果API失败，使用默认通知公告作为fallback
     notices.value = [
       {
