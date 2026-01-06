@@ -161,7 +161,7 @@
             <div class="info-row">
               <div class="info-item">
                 <el-icon><Trophy /></el-icon>
-                <span>{{ project.credits }}学分</span>
+                <span>{{ project.commissionCoins || project.credits || 0 }}佣金币</span>
               </div>
               <div class="info-item">
                 <el-icon><Calendar /></el-icon>
@@ -302,8 +302,8 @@
           <el-descriptions-item label="项目时长">
             {{ selectedProjectDetail.duration }}周
           </el-descriptions-item>
-          <el-descriptions-item label="可获得学分">
-            {{ selectedProjectDetail.credits }}学分
+          <el-descriptions-item label="可获得佣金币">
+            {{ selectedProjectDetail.commissionCoins || selectedProjectDetail.credits || 0 }}佣金币
           </el-descriptions-item>
           <el-descriptions-item label="开始时间">
             {{ selectedProjectDetail.startDate }}
@@ -495,7 +495,7 @@ const statistics = ref([
     color: themeColors.gradientBlue
   },
   {
-    label: '获得学分',
+    label: '获得佣金币',
     value: '0',
     icon: 'DataAnalysis',
     color: themeColors.gradientGreen
@@ -722,6 +722,7 @@ const loadMyProjects = async () => {
         type: project.type || '未分类',
         difficulty: project.difficulty || '中级',
         credits: project.credits || 0,
+        commissionCoins: project.commissionCoins || project.credits || 0,
         startDate: project.startDate || '未知时间',
         
         // 状态信息
@@ -904,7 +905,7 @@ const updateMyProjectsStats = async (projects) => {
   
   const creditsEarned = projects
     .filter(p => p.participationStatus === '运行中' || p.participationStatus === '已完成')
-    .reduce((total, project) => total + (project.credits || 0), 0)
+    .reduce((total, project) => total + (project.commissionCoins || project.credits || 0), 0)
   
   // 获取可报名项目数量（从全部项目API）
   let availableProjects = '0'
@@ -950,7 +951,7 @@ const updateMyProjectsStats = async (projects) => {
   }
   statistics.value[3] = {
     ...statistics.value[3],
-    value: creditsEarned.toString()  // 获得学分
+    value: creditsEarned.toString()  // 获得佣金币
   }
   
   console.log('📊 统计数据更新:', {
@@ -959,7 +960,7 @@ const updateMyProjectsStats = async (projects) => {
     待审核: pendingProjects,
     正在进行的项目: ongoingProjects,
     已完成项目: completedProjects,
-    获得学分: creditsEarned
+    获得佣金币: creditsEarned
   })
 }
 
@@ -1486,7 +1487,7 @@ const updateStatistics = (data) => {
   }
   statistics.value[3] = {
     ...statistics.value[3],
-    value: (statsData.creditsEarned || 0).toString()
+    value: (statsData.commissionCoinsEarned || statsData.creditsEarned || 0).toString()
   }
   
   console.log('📊 统计数据已更新:', statistics.value)
@@ -1530,10 +1531,10 @@ const calculateLocalStats = () => {
     (p.progress?.percentage || 0) < 100
   ).length
   
-  // 计算学分（从已参与的项目中获得）
+  // 计算佣金币（从已参与的项目中获得）
   const creditsEarned = myProjects.value
     .filter(p => p.participationStatus === '运行中' || p.participationStatus === '已完成')
-    .reduce((total, project) => total + (project.credits || 0), 0)
+    .reduce((total, project) => total + (project.commissionCoins || project.credits || 0), 0)
   
   // 更新统计显示，保持图标配置不变
   statistics.value[0] = {
@@ -1550,7 +1551,7 @@ const calculateLocalStats = () => {
   }
   statistics.value[3] = {
     ...statistics.value[3],
-    value: creditsEarned.toString()      // 获得学分
+    value: creditsEarned.toString()      // 获得佣金币
   }
   
   console.log('📊 本地统计数据计算完成:', {
@@ -1559,7 +1560,7 @@ const calculateLocalStats = () => {
     待审核: pendingProjects,
     正在进行的项目: ongoingProjects,
     已完成项目: completedProjects,
-    获得学分: creditsEarned,
+    获得佣金币: creditsEarned,
     全部项目数: allProjects.value.length,
     我的项目数: myProjects.value.length
   })
