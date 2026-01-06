@@ -51,6 +51,19 @@ const routes = [
         meta: { title: '项目实训', icon: 'Briefcase' }
       },
       {
+        path: 'recruitment',
+        name: 'Recruitment',
+        component: () => import('@/views/Recruitment.vue'),
+        meta: { title: '企业直聘', icon: 'Promotion' }
+      },
+      {
+        path: 'profile',
+        name: 'Profile',
+        component: () => import('@/views/Profile.vue'),
+        // 个人中心：通过头像下拉进入，不在侧边导航栏展示
+        meta: { title: '个人中心', icon: 'User', hiddenInMenu: true }
+      },
+      {
         path: 'postgraduate',
         component: () => import('@/views/Postgraduate/Layout.vue'),
         meta: { title: '考研专区', icon: 'Reading' },

@@ -231,5 +231,43 @@ export const userApi = {
     // 使用完整的URL避免路径重复
     const fullUrl = `http://${API_IP}:${API_PORT}/api/common/schools`
     return noTokenRequest.get(fullUrl)
+  },
+
+  // ========== 佣金币相关API ==========
+  
+  // 获取兑换汇率
+  getExchangeRate() {
+    console.log('💰 获取兑换汇率: /coin-exchange/rate')
+    return request.get('/coin-exchange/rate')
+  },
+
+  // 申请兑换
+  applyExchange(data) {
+    console.log('💰 申请兑换佣金币:', data)
+    return request.post('/coin-exchange/apply', data)
+  },
+
+  // 获取我的兑换申请列表
+  getExchangeApplications(params) {
+    console.log('💰 获取兑换申请列表:', params)
+    return request.get('/coin-exchange/applications', { params })
+  },
+
+  // 获取兑换申请详情
+  getExchangeApplicationDetail(applicationId) {
+    console.log(`💰 获取兑换申请详情: /coin-exchange/applications/${applicationId}`)
+    return request.get(`/coin-exchange/applications/${applicationId}`)
+  },
+
+  // 取消兑换申请
+  cancelExchangeApplication(applicationId) {
+    console.log(`💰 取消兑换申请: /coin-exchange/applications/${applicationId}/cancel`)
+    return request.put(`/coin-exchange/applications/${applicationId}/cancel`)
+  },
+
+  // 获取佣金币交易记录
+  getCoinTransactions(params) {
+    console.log('💰 获取佣金币交易记录:', params)
+    return request.get('/user/commission-coins/transactions', { params })
   }
 }

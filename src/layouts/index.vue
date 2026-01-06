@@ -147,8 +147,8 @@ initUserInfo()
 
 const menuRoutes = computed(() => {
   const children = route.matched[0]?.children || []
-  // 过滤掉没有meta.title的路由，但保留有children的路由（如考研专区）
-  return children.filter(child => child.meta?.title)
+  // 过滤掉没有meta.title的路由，或标记为隐藏的路由（如个人中心），但保留有children的路由（如考研专区）
+  return children.filter(child => child.meta?.title && !child.meta?.hiddenInMenu)
 })
 
 const getMenuPath = (route) => {
@@ -180,7 +180,7 @@ const toggleCollapse = () => {
 const handleCommand = async (command) => {
   switch (command) {
     case 'profile':
-      ElMessage.info('个人中心功能开发中')
+      router.push('/profile')
       break
     case 'settings':
       ElMessage.info('设置功能开发中')
