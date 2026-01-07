@@ -65,100 +65,104 @@
       </el-form>
     </el-card>
 
-    <!-- 课程列表 -->
-    <el-card class="courses-card" shadow="never">
-      <template #header>
-        <div class="card-header">
-          <span>我的课程</span>
-          <el-button type="primary" text @click="$router.push('/course-selection')">
-            添加课程
-            <el-icon><Plus /></el-icon>
-          </el-button>
-        </div>
-      </template>
-
-      <div class="courses-list">
-        <el-card
-          v-for="course in filteredCourses"
-          :key="course.id"
-          class="course-item"
-          shadow="hover"
-        >
-          <div class="course-main">
-            <div class="course-info">
-              <div class="course-header-info">
-                <h3 class="course-name">{{ course.name }}</h3>
-                <el-tag :type="getStatusType(course.status)" size="small">
-                  {{ course.status }}
-                </el-tag>
-              </div>
-              <div class="course-meta">
-                <span class="meta-item">
-                  <el-icon><User /></el-icon>
-                  {{ course.enterprise }}
-                </span>
-                <span class="meta-item">
-                  <el-icon><Calendar /></el-icon>
-                  {{ course.semester }}
-                </span>
-                <span class="meta-item">
-                  <el-icon><Star /></el-icon>
-                  {{ course.credits }}学分
-                </span>
-              </div>
-            </div>
-
-            <div class="course-progress-section">
-              <div class="progress-header">
-                <span>学习进度</span>
-                <span class="progress-percent">{{ course.progress }}%</span>
-              </div>
-              <el-progress
-                :percentage="course.progress"
-                :color="getProgressColor(course.progress)"
-                :stroke-width="10"
-                :show-text="false"
-              />
-              <div class="progress-details">
-                <span>已学习：{{ course.learnedHours }}小时 / {{ course.totalHours }}小时</span>
-                <span>已完成作业：{{ course.completedAssignments }} / {{ course.totalAssignments }}</span>
-              </div>
-            </div>
-
-            <div class="course-actions">
-              <el-button type="primary" @click="handleContinue(course.id)">
-                <el-icon><VideoPlay /></el-icon>
-                继续学习
-              </el-button>
-              <el-button @click="handleViewDetail(course.id)">
-                <el-icon><Document /></el-icon>
-                查看详情
+    <!-- 主要内容区域 - 左右分栏 -->
+    <el-row :gutter="20" class="main-content-row">
+      <!-- 左侧：课程列表 -->
+      <el-col :xs="24" :md="16" :lg="16">
+        <el-card class="courses-card" shadow="never">
+          <template #header>
+            <div class="card-header">
+              <span>我的课程</span>
+              <el-button type="primary" text @click="$router.push('/course-selection')">
+                添加课程
+                <el-icon><Plus /></el-icon>
               </el-button>
             </div>
+          </template>
+
+          <div class="courses-list">
+            <el-card
+              v-for="course in filteredCourses"
+              :key="course.id"
+              class="course-item"
+              shadow="hover"
+            >
+              <div class="course-main">
+                <div class="course-info">
+                  <div class="course-header-info">
+                    <h3 class="course-name">{{ course.name }}</h3>
+                    <el-tag :type="getStatusType(course.status)" size="small">
+                      {{ course.status }}
+                    </el-tag>
+                  </div>
+                  <div class="course-meta">
+                    <span class="meta-item">
+                      <el-icon><User /></el-icon>
+                      {{ course.enterprise }}
+                    </span>
+                    <span class="meta-item">
+                      <el-icon><Calendar /></el-icon>
+                      {{ course.semester }}
+                    </span>
+                    <span class="meta-item">
+                      <el-icon><Star /></el-icon>
+                      {{ course.credits }}学分
+                    </span>
+                  </div>
+                </div>
+
+                <div class="course-progress-section">
+                  <div class="progress-header">
+                    <span>学习进度</span>
+                    <span class="progress-percent">{{ course.progress }}%</span>
+                  </div>
+                  <el-progress
+                    :percentage="course.progress"
+                    :color="getProgressColor(course.progress)"
+                    :stroke-width="10"
+                    :show-text="false"
+                  />
+                  <div class="progress-details">
+                    <span>已学习：{{ course.learnedHours }}小时 / {{ course.totalHours }}小时</span>
+                    <span>已完成作业：{{ course.completedAssignments }} / {{ course.totalAssignments }}</span>
+                  </div>
+                </div>
+
+                <div class="course-actions">
+                  <el-button type="primary" @click="handleContinue(course.id)">
+                    <el-icon><VideoPlay /></el-icon>
+                    继续学习
+                  </el-button>
+                  <el-button @click="handleViewDetail(course.id)">
+                    <el-icon><Document /></el-icon>
+                    查看详情
+                  </el-button>
+                </div>
+              </div>
+            </el-card>
+
+            <el-empty v-if="filteredCourses.length === 0" description="暂无课程数据" />
           </div>
         </el-card>
-
-        <el-empty v-if="filteredCourses.length === 0" description="暂无课程数据" />
-      </div>
-    </el-card>
-
-    <!-- 数据可视化图表 -->
-    <el-row :gutter="20" class="charts-row">
-      <el-col :xs="24" :md="12">
-        <el-card class="chart-card" shadow="never">
-          <template #header>
-            <span>学分获取趋势</span>
-          </template>
-          <v-chart :option="creditsChartOption" style="height: 300px" />
-        </el-card>
       </el-col>
-      <el-col :xs="24" :md="12">
-        <el-card class="chart-card" shadow="never">
-          <template #header>
-            <span>课程学习时长分布</span>
-          </template>
-          <v-chart :option="timeDistributionOption" style="height: 300px" />
-        </el-card>
+
+      <!-- 右侧：图表区域 -->
+      <el-col :xs="24" :md="8" :lg="8">
+        <div class="charts-sidebar">
+          <el-card class="chart-card" shadow="hover">
+            <template #header>
+              <span>学分获取趋势</span>
+            </template>
+            <v-chart :option="creditsChartOption" style="height: 300px" />
+          </el-card>
+
+          <el-card class="chart-card" shadow="hover">
+            <template #header>
+              <span>课程学习时长分布</span>
+            </template>
+            <v-chart :option="timeDistributionOption" style="height: 300px" />
+          </el-card>
+        </div>
       </el-col>
     </el-row>
 
@@ -460,7 +464,8 @@ import {
   Clock,
   Collection,
   Upload,
-  View
+  View,
+  Close
 } from '@element-plus/icons-vue'
 import { themeColors } from '@/styles/variables.js'
 import { userApi } from '@/api'
@@ -491,7 +496,33 @@ const showCourseDetailDialog = ref(false)
 const currentCourseDetail = ref(null)
 const courseDetailLoading = ref(false)
 
-const statistics = ref([])
+// 初始化统计数据（虚拟数据）
+const statistics = ref([
+  {
+    label: '总课程数',
+    value: '8',
+    icon: 'Collection',
+    color: themeColors.gradientPrimary
+  },
+  {
+    label: '已获学分',
+    value: '24',
+    icon: 'Trophy',
+    color: themeColors.gradientPink
+  },
+  {
+    label: '平均进度',
+    value: '75%',
+    icon: 'DataAnalysis',
+    color: themeColors.gradientBlue
+  },
+  {
+    label: '学习时长',
+    value: '120h',
+    icon: 'Clock',
+    color: themeColors.gradientGreen
+  }
+])
 const creditsTrendData = ref({
   categories: [],
   credits: []
@@ -1078,7 +1109,14 @@ const fetchProgressStats = async () => {
       const successCodes = [200, 0, 201, 204]
       if (successCodes.includes(response.code)) {
         console.log('✅ 获取学习进度统计成功，响应码:', response.code)
-        statistics.value = response.data || response || []
+        // 只有当返回的数据是有效数组且不为空时才更新
+        const data = response.data || response
+        if (Array.isArray(data) && data.length > 0) {
+          statistics.value = data
+        } else {
+          console.log('⚠️ API返回数据为空，保留虚拟数据')
+          // 保留初始虚拟数据，不更新
+        }
       } else {
         console.log('❌ 获取学习进度统计失败，错误码:', response.code, '错误信息:', response.message)
         // 使用默认统计数据作为fallback
@@ -1112,7 +1150,13 @@ const fetchProgressStats = async () => {
     } else {
       // 非标准格式，直接使用响应数据
       console.log('📄 学习进度统计非标准格式响应，直接使用数据')
-      statistics.value = Array.isArray(response) ? response : []
+      // 只有当返回的数据是有效数组且不为空时才更新
+      if (Array.isArray(response) && response.length > 0) {
+        statistics.value = response
+      } else {
+        console.log('⚠️ API返回数据为空，保留虚拟数据')
+        // 保留初始虚拟数据，不更新
+      }
     }
   } catch (error) {
     console.error('获取学习进度统计失败:', error)
@@ -1784,13 +1828,73 @@ onMounted(async () => {
     }
   }
 
-  .charts-row {
-    margin-bottom: 20px;
+  // 主要内容区域 - 左右分栏
+  .main-content-row {
+    margin-top: 20px;
   }
 
-  .chart-card {
-    border: none;
-    margin-bottom: 20px;
+  // 右侧图表区域
+  .charts-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    position: sticky;
+    top: 20px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 3px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: #c1c1c1;
+      border-radius: 3px;
+
+      &:hover {
+        background: #a8a8a8;
+      }
+    }
+
+    .chart-card {
+      border: none;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      border-radius: 12px;
+      background: white;
+      transition: all 0.3s ease;
+
+      &:hover {
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+        transform: translateY(-2px);
+      }
+
+      :deep(.el-card__header) {
+        padding: 16px;
+        border-bottom: 1px solid #f0f0f0;
+        font-weight: 600;
+        font-size: 16px;
+      }
+
+      :deep(.el-card__body) {
+        padding: 16px;
+      }
+    }
+  }
+
+  // 响应式布局
+  @media (max-width: 992px) {
+    .main-content-row {
+      .charts-sidebar {
+        margin-top: 20px;
+        position: static;
+        max-height: none;
+      }
+    }
   }
 
   .assignments-card {

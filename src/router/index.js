@@ -36,7 +36,7 @@ const routes = [
         path: 'progress',
         name: 'Progress',
         component: () => import('@/views/Progress.vue'),
-        meta: { title: '学习进度', icon: 'DataAnalysis' }
+        meta: { title: '课程学习', icon: 'DataAnalysis' }
       },
       {
         path: 'course-selection',

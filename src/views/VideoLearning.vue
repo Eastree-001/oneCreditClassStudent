@@ -13,8 +13,28 @@
           </div>
         </div>
 
+        <!-- 视频/练习切换按钮 -->
+        <div class="content-tabs">
+          <el-button
+            :type="currentTab === 'video' ? 'primary' : 'default'"
+            @click="currentTab = 'video'"
+            size="large"
+          >
+            <el-icon><VideoPlay /></el-icon>
+            视频
+          </el-button>
+          <el-button
+            :type="currentTab === 'practice' ? 'primary' : 'default'"
+            @click="currentTab = 'practice'"
+            size="large"
+          >
+            <el-icon><Document /></el-icon>
+            练习
+          </el-button>
+        </div>
+
         <!-- 视频播放器 -->
-        <div class="video-player">
+        <div v-show="currentTab === 'video'" class="video-player">
           <div v-if="currentVideo && !getVideoUrl(currentVideo)" class="video-url-warning">
             <el-icon><Warning /></el-icon>
             <span>当前视频没有可用的播放URL，请检查数据源</span>
@@ -27,6 +47,72 @@
             @ended="handleVideoEnd"
             @timeupdate="handleTimeUpdate"
           ></video>
+        </div>
+
+        <!-- 练习内容区域 -->
+        <div v-show="currentTab === 'practice'" class="practice-content">
+          <div class="practice-header">
+            <h3>{{ currentVideo?.title || '练习内容' }}</h3>
+            <el-tag type="info">第 {{ currentIndex + 1 }} 讲</el-tag>
+          </div>
+          <div class="practice-body">
+            <div v-if="currentPractice && currentPractice.questions && currentPractice.questions.length > 0">
+              <div
+                v-for="(question, index) in currentPractice.questions"
+                :key="index"
+                class="practice-question"
+              >
+                <div class="question-header">
+                  <span class="question-number">题目 {{ index + 1 }}</span>
+                  <el-tag :type="getQuestionTypeTag(question.type)" size="small">
+                    {{ getQuestionTypeText(question.type) }}
+                  </el-tag>
+                </div>
+                <div class="question-content">
+                  <p class="question-title">{{ question.title }}</p>
+                  <div v-if="question.type === 'choice'" class="question-options">
+                    <div
+                      v-for="(option, optIndex) in question.options"
+                      :key="optIndex"
+                      class="option-item"
+                    >
+                      <span class="option-label">{{ String.fromCharCode(65 + optIndex) }}.</span>
+                      <span class="option-text">{{ option }}</span>
+                    </div>
+                  </div>
+                  <div v-else-if="question.type === 'fill'" class="question-answer">
+                    <el-input
+                      v-model="question.userAnswer"
+                      type="textarea"
+                      :rows="3"
+                      placeholder="请输入答案"
+                    />
+                  </div>
+                  <div v-else-if="question.type === 'essay'" class="question-answer">
+                    <el-input
+                      v-model="question.userAnswer"
+                      type="textarea"
+                      :rows="6"
+                      placeholder="请输入您的答案"
+                    />
+                  </div>
+                </div>
+                <div v-if="question.answer" class="question-answer-section">
+                  <el-collapse>
+                    <el-collapse-item title="查看答案" name="answer">
+                      <div class="answer-content">
+                        <p><strong>正确答案：</strong>{{ question.answer }}</p>
+                        <p v-if="question.explanation"><strong>解析：</strong>{{ question.explanation }}</p>
+                      </div>
+                    </el-collapse-item>
+                  </el-collapse>
+                </div>
+              </div>
+            </div>
+            <el-empty v-else description="当前课程暂无练习内容">
+              <p class="empty-tip">练习内容正在准备中，敬请期待</p>
+            </el-empty>
+          </div>
         </div>
 
         <!-- 视频控制按钮 -->
@@ -121,7 +207,8 @@ import {
   Select,
   VideoPlay,
   Clock,
-  Warning
+  Warning,
+  Document
 } from '@element-plus/icons-vue'
 import { courseApi } from '@/api'
 import { API_IP, API_PORT } from '@/config/api'
@@ -135,11 +222,87 @@ const videos = ref([])
 const currentIndex = ref(0)
 const currentCourse = ref({})
 const videoPlayer = ref(null)
+const currentTab = ref('video') // 'video' 或 'practice'
 
 // 当前视频
 const currentVideo = computed(() => {
   return videos.value[currentIndex.value] || null
 })
+
+// 当前练习内容
+const currentPractice = computed(() => {
+  if (!currentVideo.value) return null
+  // 从视频数据中获取练习内容，或根据视频ID获取
+  return currentVideo.value.practice || getPracticeByVideoId(currentVideo.value.id)
+})
+
+// 根据视频ID获取练习内容（模拟数据）
+const getPracticeByVideoId = (videoId) => {
+  // 这里可以从API获取，暂时使用模拟数据
+  const mockPractices = {
+    1: {
+      questions: [
+        {
+          type: 'choice',
+          title: 'Vue.js 的核心特性是什么？',
+          options: ['组件化', '响应式数据绑定', '虚拟DOM', '以上都是'],
+          answer: 'D',
+          explanation: 'Vue.js 是一个渐进式框架，包含了组件化、响应式数据绑定和虚拟DOM等核心特性。'
+        },
+        {
+          type: 'fill',
+          title: 'Vue 3 中用于创建响应式数据的 API 是 ______。',
+          answer: 'ref 或 reactive',
+          explanation: 'Vue 3 引入了 Composition API，使用 ref 或 reactive 来创建响应式数据。'
+        },
+        {
+          type: 'essay',
+          title: '请简述 Vue 组件之间的通信方式。',
+          answer: 'Vue 组件通信方式包括：1. 父子组件通过 props 和 $emit；2. 使用 provide/inject；3. 使用 Vuex 或 Pinia 状态管理；4. 使用事件总线。',
+          explanation: '不同的通信方式适用于不同的场景，需要根据实际需求选择。'
+        }
+      ]
+    },
+    2: {
+      questions: [
+        {
+          type: 'choice',
+          title: '以下哪个不是 Vue 的生命周期钩子？',
+          options: ['created', 'mounted', 'updated', 'destroyed'],
+          answer: 'D',
+          explanation: 'Vue 3 中 destroyed 已被重命名为 unmounted。'
+        },
+        {
+          type: 'fill',
+          title: 'Vue 中用于监听数据变化的 API 是 ______。',
+          answer: 'watch 或 watchEffect',
+          explanation: 'watch 用于监听特定数据源，watchEffect 会自动追踪依赖。'
+        }
+      ]
+    }
+  }
+  return mockPractices[videoId] || null
+}
+
+// 获取题目类型标签
+const getQuestionTypeTag = (type) => {
+  const map = {
+    'choice': 'primary',
+    'fill': 'success',
+    'essay': 'warning'
+  }
+  return map[type] || 'info'
+}
+
+// 获取题目类型文本
+const getQuestionTypeText = (type) => {
+  const map = {
+    'choice': '选择题',
+    'fill': '填空题',
+    'essay': '问答题'
+  }
+  return map[type] || '未知类型'
+}
 
 // 获取视频URL（支持多种字段名）
 const getVideoUrl = (video) => {
@@ -263,6 +426,8 @@ const fetchVideos = async () => {
 // 选择视频
 const selectVideo = (index) => {
   currentIndex.value = index
+  // 切换回视频标签页
+  currentTab.value = 'video'
   // 保存观看进度
   localStorage.setItem(`lastWatched_${courseId.value}`, videos.value[index].id)
 
@@ -358,13 +523,34 @@ onMounted(() => {
   background: white;
   border-radius: 16px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
+  overflow: visible;
+  max-height: calc(100vh - 40px);
 }
 
 .video-player-section {
   display: flex;
   flex-direction: column;
   padding: 24px;
+  overflow-y: auto;
+  max-height: calc(100vh - 40px);
+  
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+
+    &:hover {
+      background: #a8a8a8;
+    }
+  }
 }
 
 .video-header {
@@ -392,6 +578,23 @@ onMounted(() => {
     background: #f5f7fa;
     padding: 6px 12px;
     border-radius: 20px;
+  }
+}
+
+.content-tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 12px;
+  background: #f5f7fa;
+  border-radius: 8px;
+
+  .el-button {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
   }
 }
 
@@ -428,6 +631,142 @@ onMounted(() => {
 
   .el-icon {
     font-size: 48px;
+  }
+}
+
+.practice-content {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+  min-height: 400px;
+  max-height: calc(100vh - 300px);
+  overflow-y: auto;
+  border: 1px solid #eee;
+  
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+
+    &:hover {
+      background: #a8a8a8;
+    }
+  }
+
+  .practice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #f0f0f0;
+
+    h3 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 600;
+      color: #303133;
+    }
+  }
+
+  .practice-body {
+    .practice-question {
+      margin-bottom: 32px;
+      padding: 20px;
+      background: #fafbfc;
+      border-radius: 8px;
+      border-left: 4px solid #409eff;
+
+      .question-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+
+      .question-number {
+        font-size: 16px;
+        font-weight: 600;
+        color: #303133;
+      }
+
+      .question-content {
+        .question-title {
+          font-size: 15px;
+          line-height: 1.8;
+          color: #606266;
+          margin-bottom: 16px;
+        }
+
+        .question-options {
+          .option-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e4e7ed;
+            cursor: pointer;
+            transition: all 0.3s;
+
+            &:hover {
+              border-color: #409eff;
+              background: #ecf5ff;
+            }
+
+            .option-label {
+              font-weight: 600;
+              color: #409eff;
+              margin-right: 12px;
+              min-width: 24px;
+            }
+
+            .option-text {
+              flex: 1;
+              color: #606266;
+            }
+          }
+        }
+
+        .question-answer {
+          margin-top: 12px;
+        }
+      }
+
+      .question-answer-section {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid #e4e7ed;
+
+        .answer-content {
+          p {
+            margin: 8px 0;
+            line-height: 1.8;
+            color: #606266;
+
+            strong {
+              color: #303133;
+            }
+          }
+        }
+      }
+    }
+
+    .empty-tip {
+      text-align: center;
+      color: #909399;
+      margin-top: 12px;
+    }
   }
 }
 
