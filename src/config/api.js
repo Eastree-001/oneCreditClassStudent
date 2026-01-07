@@ -1,7 +1,7 @@
 // API配置文件
 
 // API服务器IP地址常量 - 便于统一管理
-export const API_IP = '192.168.1.153'
+export const API_IP = '192.168.1.172'
 export const API_PORT = '8082'
 export const API_BASE_PATH = '/api/student'
 

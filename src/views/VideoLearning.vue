@@ -7,7 +7,12 @@
           <el-button @click="goBack" circle>
             <el-icon><ArrowLeft /></el-icon>
           </el-button>
-          <h2 class="course-title">{{ currentCourse.title || '课程视频' }}</h2>
+          <div class="video-title-area">
+            <h2 class="course-title">{{ currentVideo.syllabusTitle || currentVideo.title || currentVideo.name || '课程视频' }}</h2>
+            <el-tag v-if="currentVideo.chapter" type="success" size="small" style="margin-left: 10px;">
+              第{{ currentVideo.chapter }}章
+            </el-tag>
+          </div>
           <div class="video-progress">
             <span>{{ currentIndex + 1 }}/{{ videos.length }}</span>
           </div>
@@ -71,8 +76,11 @@
             <div class="video-item-content">
               <div class="video-item-number">{{ index + 1 }}</div>
               <div class="video-item-info">
-                <div class="video-item-title">{{ video.title || video.name || `视频 ${index + 1}` }}</div>
+                <div class="video-item-title">{{ video.syllabusTitle || video.title || video.name || `视频 ${index + 1}` }}</div>
                 <div class="video-item-meta">
+                  <el-tag v-if="video.chapter" type="success" size="small" style="margin-right: 8px;">
+                    第{{ video.chapter }}章
+                  </el-tag>
                   <span v-if="getVideoDuration(video)">
                     <el-icon><Clock /></el-icon>
                     {{ getVideoDuration(video) }}
@@ -376,14 +384,21 @@ onMounted(() => {
   border-bottom: 1px solid #eee;
 
   .course-title {
-    flex: 1;
-    margin: 0 16px;
+    margin: 0;
     font-size: 24px;
     font-weight: 600;
     color: #303133;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .video-title-area {
+    flex: 1;
+    margin: 0 16px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
   }
 
   .video-progress {
