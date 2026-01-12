@@ -14,7 +14,7 @@
             </el-tag>
           </div>
           <div class="video-progress">
-            <span>{{ currentIndex + 1 }}/{{ videos.length }}</span>
+            <span>{{ currentIndex + 1 }}/{{ videos.length }}</span> zcBVB/''
           </div>
         </div>
 
@@ -156,7 +156,7 @@ const getVideoUrl = (video) => {
   console.log('🔍 获取视频URL，视频数据:', video)
   console.log('🔍 可用字段:', Object.keys(video))
 
-  // 尝试多个可能的字段名
+  // 尝试多个可能的字段名（按优先级排序）
   const url = video.url ||
               video.videoUrl ||
               video.video_url ||
@@ -167,15 +167,27 @@ const getVideoUrl = (video) => {
               video.playUrl ||
               video.fileUrl ||
               video.file_path ||
+              video.path ||
+              video.location ||
+              video.resourceUrl ||
+              video.resource_url ||
+              video.videoResource ||
+              video.resourcePath ||
+              video.filePath ||
+              video.file ||
               ''
 
   // 如果URL是相对路径，拼接完整的服务器地址
   let fullUrl = url
   if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
-    fullUrl = `http://${API_IP}:${API_PORT}/${url}`
+    // 去除开头的斜杠，避免双斜杠
+    const cleanPath = url.startsWith('/') ? url.substring(1) : url
+    fullUrl = `http://${API_IP}:${API_PORT}/${cleanPath}`
   }
 
+  console.log('🎬 原始URL:', url)
   console.log('🎬 最终视频URL:', fullUrl)
+  console.log('🎬 URL是否有效:', !!fullUrl && fullUrl !== '')
 
   return fullUrl
 }
@@ -234,6 +246,12 @@ const fetchVideos = async () => {
     if (videos.value.length > 0) {
       console.log('📋 视频数据示例:', videos.value[0])
       console.log('📋 视频字段:', Object.keys(videos.value[0]))
+      console.log('📋 第一个视频URL检查:')
+      console.log('  - url:', videos.value[0].url)
+      console.log('  - videoUrl:', videos.value[0].videoUrl)
+      console.log('  - video_url:', videos.value[0].video_url)
+      console.log('  - videoPath:', videos.value[0].videoPath)
+      console.log('  - 最终URL:', getVideoUrl(videos.value[0]))
     }
 
     // 恢复上次观看位置
@@ -256,7 +274,7 @@ const fetchVideos = async () => {
     videos.value = Array.from({ length: 5 }, (_, i) => ({
       id: i + 1,
       title: `课程视频 ${i + 1} - ${['课程介绍', '基础知识', '进阶内容', '实战案例', '总结回顾'][i]}`,
-      url: '',
+      url: `uploads/videos/course_${courseId.value}_video_${i + 1}.mp4`,
       duration: `${10 + i * 5}:00`,
       completed: false
     }))
