@@ -170,9 +170,9 @@
                 >
                   <el-option
                     v-for="school in schools"
-                    :key="school.id || school.universityName"
-                    :label="school.universityName || school"
-                    :value="school.universityName || school"
+                    :key="school.id || school.name || school"
+                    :label="school.name || school.universityName || school"
+                    :value="school.name || school.universityName || school"
                   />
                 </el-select>
               </el-form-item>
@@ -355,23 +355,23 @@ watch(() => registerForm.email, (newEmail) => {
 const fetchSchools = async () => {
   schoolsLoading.value = true
   try {
-    console.log('🏫 开始获取学校列表...')
+    // console.log('🏫 开始获取学校列表...')
     const response = await userApi.getSchools()
-    console.log('🏫 学校列表响应:', response)
+    // console.log('🏫 学校列表响应:', response)
     
     // 处理响应数据
     if (response && response.data) {
       schools.value = response.data
-      console.log('✅ 学校列表获取成功:', schools.value)
+      // console.log('✅ 学校列表获取成功:', schools.value)
     } else if (Array.isArray(response)) {
       schools.value = response
-      console.log('✅ 学校列表获取成功 (直接数组):', schools.value)
+      // console.log('✅ 学校列表获取成功 (直接数组):', schools.value)
     } else {
-      console.warn('⚠️ 学校列表响应格式异常:', response)
+      // console.warn('⚠️ 学校列表响应格式异常:', response)
       schools.value = []
     }
   } catch (error) {
-    console.error('❌ 获取学校列表失败:', error)
+    // console.error('❌ 获取学校列表失败:', error)
     schools.value = []
     // 如果获取失败，可以提供一些默认学校作为备选
     schools.value = [
@@ -408,39 +408,46 @@ const handleSendVerificationCode = async () => {
   verificationCodeLoading.value = true
   
   try {
-    console.log('发送验证码请求:', { email: registerForm.email })
-    console.log('请求URL:', `${BASE_URL}/auth/send-verification`)
+    // console.log('发送验证码请求:', { email: registerForm.email })
+    // console.log('请求URL:', `${BASE_URL}/auth/send-verification`)
     
     const response = await userApi.sendVerification({ 
       email: registerForm.email 
     })
     
-    console.log('发送验证码响应:', response)
+    // console.log('发送验证码响应:', response)
     
     // 检查响应格式
     if (response && typeof response === 'object' && 'code' in response) {
-      console.log('🏷️ 发送验证码标准格式响应，code:', response.code, 'message:', response.message)
+      // console.log('🏷️ 发送验证码标准格式响应，code:', response.code, 'message:', response.data.message)
       
       const successCodes = [200, 0, 201, 204]
       if (successCodes.includes(response.code)) {
-        console.log('✅ 验证码发送成功，响应码:', response.code)
-        ElMessage.success('验证码已发送到您的邮箱，请查收')
-        
-        // 开始倒计时
-        verificationCountdown.value = 60
-        const timer = setInterval(() => {
-          verificationCountdown.value--
-          if (verificationCountdown.value <= 0) {
-            clearInterval(timer)
-          }
-        }, 1000)
+        const msg = response.data?.message || response.message || ''
+        // 判断是否是邮箱已被注册的错误
+        if (msg.includes('该邮箱已被注册')) {
+          // console.log('❌ 该邮箱已被注册')
+          ElMessage.error(msg)
+        } else {
+          // console.log('✅ 验证码发送成功，响应码:', response.code)
+          ElMessage.success(msg)
+          
+          // 开始倒计时
+          verificationCountdown.value = 60
+          const timer = setInterval(() => {
+            verificationCountdown.value--
+            if (verificationCountdown.value <= 0) {
+              clearInterval(timer)
+            }
+          }, 1000)
+        }
       } else {
-        console.log('❌ 验证码发送失败，错误码:', response.code, '错误信息:', response.message)
+        // console.log('❌ 验证码发送失败，错误码:', response.code, '错误信息:', response.message)
         const errorMsg = response.message && response.message.trim() !== '' ? response.message : '验证码发送失败'
         throw new Error(errorMsg)
       }
     } else {
-      console.log('✅ 验证码发送成功（非标准格式响应）')
+      // console.log('✅ 验证码发送成功（非标准格式响应）')
       ElMessage.success('验证码已发送到您的邮箱，请查收')
       
       // 开始倒计时

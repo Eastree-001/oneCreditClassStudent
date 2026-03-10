@@ -229,7 +229,7 @@ export const userApi = {
   getSchools() {
     console.log('🏫 获取学校列表: /api/common/schools')
     // 使用完整的URL避免路径重复
-    const fullUrl = `http://${API_IP}:${API_PORT}/api/common/schools`
+    const fullUrl = `http://${API_IP}:${API_PORT}/api/common/university/list`
     return noTokenRequest.get(fullUrl)
   },
 

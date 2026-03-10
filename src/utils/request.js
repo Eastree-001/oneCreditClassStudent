@@ -79,7 +79,6 @@ commonRequest.interceptors.request.use(
     const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
-      console.log('🔑 commonRequest已添加Authorization头')
     }
 
     return config
@@ -161,7 +160,7 @@ request.interceptors.request.use(
     // 如果有token，添加到请求头
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
-      console.log('🔑 已添加Authorization头:', `Bearer ${token.substring(0, 20)}...`)
+     
     } else {
       console.log('⚠️ 没有有效的token，请求可能会失败')
       
